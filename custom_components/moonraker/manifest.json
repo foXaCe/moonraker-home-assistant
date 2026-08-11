@@ -1,12 +1,18 @@
 {
   "domain": "moonraker",
   "name": "Moonraker",
-  "codeowners": ["@foXaCe"],
+  "codeowners": [
+    "@foXaCe"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/foXaCe/moonraker-home-assistant",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/foXaCe/moonraker-home-assistant/issues",
-  "loggers": ["moonraker"],
-  "requirements": ["moonraker-api==2.0.6"],
-  "version": "1.13.4"
+  "loggers": [
+    "moonraker"
+  ],
+  "requirements": [
+    "moonraker-api==2.0.6"
+  ],
+  "version": "1.14.0"
 }
