@@ -1,0 +1,36 @@
+# Fork DUAL-PURPOSE : garde main synchronisée avec l'upstream
+# (marcolivierarsenault/moonraker-home-assistant) pour que les branches de
+# contribution partent toujours d'une base fraîche.
+#
+# Procédure de contribution :
+#   git fetch origin && git checkout -b feat/ma-feature origin/main
+#   ... commits ...
+#   git push fork feat/ma-feature
+#   gh pr create   (cible l'upstream — gh repo set-default y pointe déjà)
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync main with upstream
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Merge upstream into main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/${{ github.repository }}/merge-upstream" \
+            -f branch=main --jq '.message'
