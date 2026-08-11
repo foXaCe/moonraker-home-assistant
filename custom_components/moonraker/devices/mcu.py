@@ -8,6 +8,7 @@ from homeassistant.const import UnitOfRatio
 
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerSensorDescription
+from .labels import fr_name
 
 
 async def build_mcu_sensors(
@@ -33,7 +34,7 @@ async def build_mcu_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{key}_load",
                 status_key=obj,
-                name=f"{name} Load",
+                name=fr_name("load", name),
                 value_fn=lambda sensor: (
                     (
                         (
@@ -64,7 +65,7 @@ async def build_mcu_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{key}_awake",
                 status_key=obj,
-                name=f"{name} Awake",
+                name=fr_name("awake", name),
                 value_fn=lambda sensor: (
                     (
                         sensor.coordinator.data["status"][sensor.status_key][

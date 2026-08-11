@@ -69,7 +69,7 @@ async def async_setup_speed_factor(
     """Set up speed factor number entity."""
 
     object_list = coordinator.objects_list or {"objects": []}
-    if "gcode_move" not in object_list["objects"]:
+    if "gcode_move" not in object_list.get("objects", []):
         return
 
     desc = MoonrakerNumberSensorDescription(

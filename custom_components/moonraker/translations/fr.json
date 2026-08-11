@@ -236,7 +236,8 @@
     },
     "camera": {
       "thumbnail": {
-        "name": "Miniature"
+        "name": "Miniature",
+        "icon": "mdi:printer-3d-nozzle"
       }
     },
     "update": {

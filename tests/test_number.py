@@ -34,19 +34,19 @@ async def test_targets(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get("number.mainsail_bed_target").state == "60.0"
-    assert hass.states.get("number.mainsail_extruder_target").state == "205.0"
-    assert hass.states.get("number.mainsail_extruder1_target").state == "220.0"
-    fan_target = hass.states.get("number.mainsail_fan_temp_target")
+    assert hass.states.get("number.mainsail_cible_du_plateau").state == "60.0"
+    assert hass.states.get("number.mainsail_cible_de_l_extrudeuse").state == "205.0"
+    assert hass.states.get("number.mainsail_cible_de_l_extrudeuse_1").state == "220.0"
+    fan_target = hass.states.get("number.mainsail_cible_fan_temp")
     assert fan_target.state == "35.0"
     assert fan_target.attributes["max"] == 70.0
     assert fan_target.attributes["min"] == 10.0
-    chamber_target = hass.states.get("number.mainsail_my_super_heater_target")
+    chamber_target = hass.states.get("number.mainsail_cible_my_super_heater")
     assert chamber_target.state == "32.0"
     assert chamber_target.attributes["max"] == 90.0
     assert chamber_target.attributes["min"] == 25.0
     assert chamber_target.attributes["icon"] == "mdi:radiator"
-    mixed_target = hass.states.get("number.mainsail_mixed_case_target")
+    mixed_target = hass.states.get("number.mainsail_cible_mixed_case")
     assert mixed_target.state == "35.0"
     assert mixed_target.attributes["max"] == 85.0
     assert mixed_target.attributes["min"] == 30.0
@@ -99,7 +99,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_extruder_target",
+                ATTR_ENTITY_ID: "number.mainsail_cible_de_l_extrudeuse",
                 "value": 50,
             },
             blocking=True,
@@ -116,7 +116,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_extruder1_target",
+                ATTR_ENTITY_ID: "number.mainsail_cible_de_l_extrudeuse_1",
                 "value": 60,
             },
             blocking=True,
@@ -133,7 +133,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_bed_target",
+                ATTR_ENTITY_ID: "number.mainsail_cible_du_plateau",
                 "value": 70,
             },
             blocking=True,
@@ -150,7 +150,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_fan_temp_target",
+                ATTR_ENTITY_ID: "number.mainsail_cible_fan_temp",
                 "value": 45,
             },
             blocking=True,
@@ -167,7 +167,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_my_super_heater_target",
+                ATTR_ENTITY_ID: "number.mainsail_cible_my_super_heater",
                 "value": 45,
             },
             blocking=True,
@@ -184,7 +184,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_mixed_case_target",
+                ATTR_ENTITY_ID: "number.mainsail_cible_mixed_case",
                 "value": 55,
             },
             blocking=True,
@@ -468,9 +468,9 @@ async def test_temperature_targets_handle_none(hass, get_data):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    bed_state = hass.states.get("number.mainsail_bed_target")
+    bed_state = hass.states.get("number.mainsail_cible_du_plateau")
     assert bed_state.state == "0.0"
-    extruder_state = hass.states.get("number.mainsail_extruder_target")
+    extruder_state = hass.states.get("number.mainsail_cible_de_l_extrudeuse")
     assert extruder_state.state == "0.0"
 
 
@@ -616,7 +616,7 @@ async def test_heater_generic_number_config_fallbacks(hass):
         entity.entity_description.name: entity for entity in added_entities
     }
 
-    mixed_entity = added_by_name["Mixed Case Target"]
+    mixed_entity = added_by_name["Cible Mixed Case"]
     assert mixed_entity.native_value == 35.0
     assert mixed_entity.native_max_value == 85.0
     assert mixed_entity.native_min_value == 30.0
@@ -624,7 +624,7 @@ async def test_heater_generic_number_config_fallbacks(hass):
         mixed_entity.update_string == "SET_HEATER_TEMPERATURE HEATER=MIXED_CASE TARGET="
     )
 
-    orphan_entity = added_by_name["Orphan Heater Target"]
+    orphan_entity = added_by_name["Cible Orphan Heater"]
     assert orphan_entity.native_value == 40.0
     assert orphan_entity.native_max_value is None
     assert orphan_entity.native_min_value == 0.0

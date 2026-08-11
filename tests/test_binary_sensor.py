@@ -261,7 +261,7 @@ async def test_hall_filament_width_sensor_active_on(
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("binary_sensor.mainsail_filament_width_sensor_active")
+    state = hass.states.get("binary_sensor.mainsail_actif_filament_width_sensor")
     assert state is not None
     assert state.state == "on"
 
@@ -281,7 +281,7 @@ async def test_hall_filament_width_sensor_active_off(
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("binary_sensor.mainsail_filament_width_sensor_active")
+    state = hass.states.get("binary_sensor.mainsail_actif_filament_width_sensor")
     assert state is not None
     assert state.state == "off"
 

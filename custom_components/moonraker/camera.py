@@ -68,8 +68,10 @@ async def async_setup_entry(
             )
             camera_cnt += 1
         else:
-            cameras = await coordinator.async_fetch_data(METHODS.SERVER_WEBCAMS_LIST)
-            for camera_id, camera in enumerate(cameras["webcams"]):
+            cameras = await coordinator.async_fetch_data(
+                METHODS.SERVER_WEBCAMS_LIST, offline_ok=True
+            )
+            for camera_id, camera in enumerate(cameras.get("webcams", [])):
                 async_add_entities(
                     [MoonrakerCamera(config_entry, coordinator, camera, camera_id)]
                 )
@@ -96,6 +98,8 @@ async def async_setup_entry(
 
 class MoonrakerCamera(MjpegCamera):
     """Representation of an Moonraker Camera Stream."""
+
+    _attr_icon = "mdi:webcam"
 
     def __init__(
         self,
@@ -134,9 +138,10 @@ class MoonrakerCamera(MjpegCamera):
 
 
 class PreviewCamera(Camera):
-    """Representation of the gcode thumnail."""
+    """Representation of the gcode thumbnail."""
 
     _attr_is_streaming = False
+    _attr_icon = "mdi:printer-3d-nozzle"
 
     def __init__(
         self,
@@ -154,7 +159,6 @@ class PreviewCamera(Camera):
         self.coordinator = coordinator
         self._attr_translation_key = "thumbnail"
         self._attr_has_entity_name = True
-        self._attr_icon = "mdi:printer-3d-nozzle"
         self._attr_unique_id = f"{config_entry.unique_id}_thumbnail"
         self._session = session
         self._current_pic = None

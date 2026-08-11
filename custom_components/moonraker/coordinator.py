@@ -338,9 +338,20 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         query_path: METHODS,
         query_obj: dict[str, Any] | None = None,
         quiet: bool = False,
+        offline_ok: bool = False,
     ) -> Any:
-        """Fetch data from Moonraker."""
-        return await self._async_fetch_data(query_path, query_obj)
+        """Fetch data from Moonraker.
+
+        When ``offline_ok`` is True and the printer is unreachable, an empty
+        mapping is returned instead of raising, so platform setup can proceed
+        with entities in an unavailable state.
+        """
+        try:
+            return await self._async_fetch_data(query_path, query_obj)
+        except UpdateFailed:
+            if offline_ok:
+                return {}
+            raise
 
     async def async_send_data(
         self, query_path: METHODS, query_obj: dict[str, Any] | None = None

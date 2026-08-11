@@ -10,6 +10,7 @@ from homeassistant.const import UnitOfRatio, REVOLUTIONS_PER_MINUTE
 from ..const import METHODS, OBJ
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSensorDescription
+from .labels import fr_name
 
 
 async def build_fan_sensors(
@@ -66,7 +67,7 @@ async def build_fan_sensors(
                 desc = MoonrakerSensorDescription(
                     key=f"{split_obj[0]}_{split_obj[1]}_rpm",
                     status_key=obj,
-                    name=f"{split_obj[1].replace('_', ' ').title()} RPM",
+                    name=fr_name("rpm", split_obj[1].replace("_", " ").title()),
                     value_fn=lambda sensor: sensor.coordinator.data["status"][
                         sensor.status_key
                     ]["rpm"],
@@ -138,7 +139,7 @@ async def build_fan_speed_numbers(
         desc = MoonrakerNumberSensorDescription(
             key=key,
             sensor_name=obj,
-            name=f"{display_name} Speed",
+            name=fr_name("speed", display_name),
             status_key="speed",
             subscriptions=[(obj, "speed")],
             icon="mdi:fan",

@@ -13,7 +13,9 @@ async def build_macro_buttons(
 ) -> list[MoonrakerButtonDescription]:
     """Build macro button descriptions from the printer g-code help."""
 
-    cmds = await coordinator.async_fetch_data(METHODS.PRINTER_GCODE_HELP)
+    cmds = await coordinator.async_fetch_data(
+        METHODS.PRINTER_GCODE_HELP, offline_ok=True
+    )
     object_list = coordinator.objects_list or {"objects": []}
     object_names = (
         set(object_list.get("objects", [])) if isinstance(object_list, dict) else set()
@@ -59,8 +61,12 @@ async def build_service_buttons(
 ) -> list[MoonrakerButtonDescription]:
     """Build Start, Stop, and Restart button descriptions for all allowed services."""
 
-    system_info = await coordinator.async_fetch_data(METHODS.MACHINE_SYSTEM_INFO)
-    available_services = system_info["system_info"].get("available_services", [])
+    system_info = await coordinator.async_fetch_data(
+        METHODS.MACHINE_SYSTEM_INFO, offline_ok=True
+    )
+    available_services = system_info.get("system_info", {}).get(
+        "available_services", []
+    )
 
     service_buttons: list[MoonrakerButtonDescription] = []
 
@@ -69,7 +75,7 @@ async def build_service_buttons(
         service_buttons.append(
             MoonrakerButtonDescription(
                 key=f"stop_{service.lower()}",
-                name=f"Stop {service}",
+                name=f"Arrêter {service}",
                 press_fn=lambda button, svc=service: button.coordinator.async_send_data(
                     METHODS.MACHINE_SERVICES_STOP, {"service": svc}
                 ),
@@ -82,7 +88,7 @@ async def build_service_buttons(
         service_buttons.append(
             MoonrakerButtonDescription(
                 key=f"start_{service.lower()}",
-                name=f"Start {service}",
+                name=f"Démarrer {service}",
                 press_fn=lambda button, svc=service: button.coordinator.async_send_data(
                     METHODS.MACHINE_SERVICES_START, {"service": svc}
                 ),
@@ -95,7 +101,7 @@ async def build_service_buttons(
         service_buttons.append(
             MoonrakerButtonDescription(
                 key=f"restart_{service.lower()}",
-                name=f"Restart {service}",
+                name=f"Redémarrer {service}",
                 press_fn=lambda button, svc=service: button.coordinator.async_send_data(
                     METHODS.MACHINE_SERVICES_RESTART, {"service": svc}
                 ),

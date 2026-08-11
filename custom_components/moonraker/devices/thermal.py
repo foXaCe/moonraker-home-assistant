@@ -16,6 +16,7 @@ from homeassistant.const import (
 from ..const import METHODS, OBJ
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSensorDescription
+from .labels import fr_name
 
 
 async def build_temperature_sensors(
@@ -90,8 +91,10 @@ async def build_temperature_sensors(
                 desc = MoonrakerSensorDescription(
                     key=f"{split_obj[0]}_{split_obj[1]}",
                     status_key=obj,
-                    name=split_obj[1].removesuffix("_temp").replace("_", " ").title()
-                    + " Temp",
+                    name=fr_name(
+                        "temp",
+                        split_obj[1].removesuffix("_temp").replace("_", " ").title(),
+                    ),
                     value_fn=lambda sensor: sensor.coordinator.data["status"][
                         sensor.status_key
                     ]["temperature"],
@@ -110,7 +113,9 @@ async def build_temperature_sensors(
                     desc = MoonrakerSensorDescription(
                         key=f"{split_obj[0]}_{split_obj[1]}_pressure",
                         status_key=obj,
-                        name=split_obj[1].replace("_", " ").title() + " Pressure",
+                        name=fr_name(
+                            "pressure", split_obj[1].replace("_", " ").title()
+                        ),
                         value_fn=lambda sensor: sensor.coordinator.data["status"][
                             sensor.status_key
                         ]["pressure"],
@@ -126,7 +131,9 @@ async def build_temperature_sensors(
                     desc = MoonrakerSensorDescription(
                         key=f"{split_obj[0]}_{split_obj[1]}_humidity",
                         status_key=obj,
-                        name=split_obj[1].replace("_", " ").title() + " Humidity",
+                        name=fr_name(
+                            "humidity", split_obj[1].replace("_", " ").title()
+                        ),
                         value_fn=lambda sensor: sensor.coordinator.data["status"][
                             sensor.status_key
                         ]["humidity"],
@@ -142,7 +149,7 @@ async def build_temperature_sensors(
                     desc = MoonrakerSensorDescription(
                         key=f"{split_obj[0]}_{split_obj[1]}_gas",
                         status_key=obj,
-                        name=split_obj[1].replace("_", " ").title() + " Gas",
+                        name=fr_name("gas", split_obj[1].replace("_", " ").title()),
                         value_fn=lambda sensor: sensor.coordinator.data["status"][
                             sensor.status_key
                         ]["gas"],
@@ -169,7 +176,7 @@ async def build_temperature_sensors(
                     MoonrakerSensorDescription(
                         key=f"{base_key}_diameter",
                         status_key=obj,
-                        name=f"{base_name} Diameter",
+                        name=fr_name("diameter", base_name),
                         value_fn=lambda sensor: sensor.coordinator.data["status"][
                             sensor.status_key
                         ]["Diameter"],
@@ -187,7 +194,7 @@ async def build_temperature_sensors(
                     MoonrakerSensorDescription(
                         key=f"{base_key}_raw",
                         status_key=obj,
-                        name=f"{base_name} Raw",
+                        name=fr_name("raw", base_name),
                         value_fn=lambda sensor: sensor.coordinator.data["status"][
                             sensor.status_key
                         ]["Raw"],
@@ -201,7 +208,7 @@ async def build_temperature_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{split_obj[0]}_{split_obj[1]}_power",
                 status_key=obj,
-                name=f"{split_obj[1].replace('_', ' ')} Power".title(),
+                name=fr_name("power", split_obj[1].replace("_", " ").title()),
                 value_fn=lambda sensor: (
                     (
                         sensor.coordinator.data["status"][sensor.status_key]["power"]
@@ -220,7 +227,7 @@ async def build_temperature_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{split_obj[0]}_{split_obj[1]}_temperature",
                 status_key=obj,
-                name=f"{split_obj[1].replace('_', ' ')} Temperature".title(),
+                name=fr_name("temperature", split_obj[1].replace("_", " ").title()),
                 value_fn=lambda sensor: sensor.coordinator.data["status"][
                     sensor.status_key
                 ]["temperature"],
@@ -242,7 +249,7 @@ async def build_temperature_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{obj}_temp",
                 status_key=obj,
-                name=f"{base_name} Temperature".title(),
+                name=fr_name("temperature", base_name),
                 value_fn=lambda sensor: sensor.coordinator.data["status"][
                     sensor.status_key
                 ]["temperature"],
@@ -257,7 +264,7 @@ async def build_temperature_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{obj}_power",
                 status_key=obj,
-                name=f"{base_name} Power".title(),
+                name=fr_name("power", base_name),
                 value_fn=lambda sensor: (
                     (
                         sensor.coordinator.data["status"][sensor.status_key]["power"]
@@ -291,7 +298,7 @@ async def build_temperature_target_numbers(
             desc = MoonrakerNumberSensorDescription(
                 key=f"{obj}_target",
                 sensor_name=obj,
-                name="Bed Target".title(),
+                name=fr_name("target", "Bed"),
                 status_key="target",
                 subscriptions=[(obj, "target")],
                 icon="mdi:radiator",
@@ -308,7 +315,7 @@ async def build_temperature_target_numbers(
             desc = MoonrakerNumberSensorDescription(
                 key=f"{obj}_target",
                 sensor_name=obj,
-                name=f"{obj} Target".title(),
+                name=fr_name("target", obj),
                 status_key="target",
                 subscriptions=[(obj, "target")],
                 icon="mdi:printer-3d-nozzle-heat",
@@ -339,7 +346,7 @@ async def build_temperature_target_numbers(
             desc = MoonrakerNumberSensorDescription(
                 key=f"{obj.replace(' ', '_')}_target_number",
                 sensor_name=obj,
-                name=f"{display_name} Target",
+                name=fr_name("target", display_name),
                 status_key="target",
                 subscriptions=[(obj, "target")],
                 icon="mdi:radiator",
@@ -374,7 +381,7 @@ async def build_temperature_target_numbers(
             desc = MoonrakerNumberSensorDescription(
                 key=f"{object_type}_{fan_key}_target_control",
                 sensor_name=obj,
-                name=f"{display_name} Target",
+                name=fr_name("target", display_name),
                 status_key="target",
                 subscriptions=[(obj, "target")],
                 icon="mdi:thermometer",

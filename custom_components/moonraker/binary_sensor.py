@@ -18,6 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import MoonrakerDataUpdateCoordinator
+from .devices.labels import fr_name
 from .entity import BaseMoonrakerEntity
 
 
@@ -84,7 +85,7 @@ async def async_setup_optional_binary_sensors(
                     is_on_fn=lambda sensor: sensor.coordinator.data["status"][
                         sensor.sensor_name
                     ]["is_active"],
-                    name=f"{base_name} Active",
+                    name=fr_name("active", base_name),
                     subscriptions=[(obj, "is_active")],
                     icon="mdi:motion-sensor",
                 )
@@ -174,7 +175,7 @@ class MoonrakerBinarySensor(BaseMoonrakerEntity, BinarySensorEntity):
         """Evaluate the is_on function, tolerating incomplete printer data."""
         try:
             return bool(self.is_on_fn(self))
-        except (KeyError, TypeError, IndexError):
+        except (KeyError, TypeError, IndexError, AttributeError):
             return False
 
     @property

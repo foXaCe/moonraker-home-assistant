@@ -62,7 +62,7 @@ async def async_setup_power_device(
     """Set optional binary sensor platform."""
 
     power_devices = await coordinator.async_fetch_data(
-        METHODS.MACHINE_DEVICE_POWER_DEVICES
+        METHODS.MACHINE_DEVICE_POWER_DEVICES, offline_ok=True
     )
     if power_devices.get("error"):
         return
@@ -70,7 +70,7 @@ async def async_setup_power_device(
     coordinator.add_data_updater(_power_device_updater, ttl=SLOW_UPDATER_TTL)
 
     sensors = []
-    for device in power_devices["devices"]:
+    for device in power_devices.get("devices", []):
         desc = MoonrakerSwitchSensorDescription(
             key=device["device"],
             sensor_name=device["device"],

@@ -26,6 +26,7 @@ ICON_EXPECTATIONS = {
     "sensor.mainsail_spool_id": "mdi:tape-measure",
     "update.mainsail_system_update": "mdi:update",
     "camera.mainsail_thumbnail": "mdi:printer-3d-nozzle",
+    "camera.mainsail_webcam": "mdi:webcam",
     "binary_sensor.mainsail_update_available": "mdi:update",
 }
 

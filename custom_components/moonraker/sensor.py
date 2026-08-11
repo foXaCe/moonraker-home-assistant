@@ -403,7 +403,9 @@ async def async_setup_history_sensors(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set history sensors."""
-    history = await coordinator.async_fetch_data(METHODS.SERVER_HISTORY_TOTALS)
+    history = await coordinator.async_fetch_data(
+        METHODS.SERVER_HISTORY_TOTALS, offline_ok=True
+    )
     if history.get("error"):
         return
 
@@ -473,7 +475,9 @@ async def async_setup_queue_sensors(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Job queue sensors."""
-    queue = await coordinator.async_fetch_data(METHODS.SERVER_JOB_QUEUE_STATUS)
+    queue = await coordinator.async_fetch_data(
+        METHODS.SERVER_JOB_QUEUE_STATUS, offline_ok=True
+    )
     if queue.get("queue_state") is None or queue.get("queued_jobs") is None:
         return
 
@@ -517,7 +521,9 @@ async def async_setup_spoolman_sensors(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Spoolman sensors."""
-    spoolman = await coordinator.async_fetch_data(METHODS.SERVER_SPOOLMAN_ID)
+    spoolman = await coordinator.async_fetch_data(
+        METHODS.SERVER_SPOOLMAN_ID, offline_ok=True
+    )
     if spoolman.get("error"):
         return
 
@@ -553,8 +559,10 @@ async def async_setup_machine_update_sensors(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Test update available."""
-    machine_status = await coordinator.async_fetch_data(METHODS.MACHINE_UPDATE_STATUS)
-    if machine_status.get("error"):
+    machine_status = await coordinator.async_fetch_data(
+        METHODS.MACHINE_UPDATE_STATUS, offline_ok=True
+    )
+    if machine_status.get("error") or not machine_status.get("version_info"):
         return
     coordinator.add_data_updater(_machine_update_updater, ttl=SLOW_UPDATER_TTL)
     sensors = []
@@ -634,7 +642,7 @@ class MoonrakerSensor(BaseMoonrakerEntity, SensorEntity):
         """Evaluate the value function, tolerating incomplete printer data."""
         try:
             return self.entity_description.value_fn(self)
-        except (KeyError, TypeError, IndexError):
+        except (KeyError, TypeError, IndexError, AttributeError):
             return None
 
     @callback

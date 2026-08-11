@@ -25,7 +25,9 @@ async def async_setup_entry(
     """Set up the update platform from machine.update.status."""
     coordinator = entry.runtime_data.coordinator
 
-    machine_status = await coordinator.async_fetch_data(METHODS.MACHINE_UPDATE_STATUS)
+    machine_status = await coordinator.async_fetch_data(
+        METHODS.MACHINE_UPDATE_STATUS, offline_ok=True
+    )
     if machine_status.get("error"):
         return
 
