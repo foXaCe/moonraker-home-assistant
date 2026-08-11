@@ -49,10 +49,17 @@ def bypass_tcp_reachable_fixture():
     reachable endpoint; individual tests can patch this to exercise the
     offline path.
     """
-    with patch(
-        "custom_components.moonraker._async_is_tcp_reachable",
-        new_callable=AsyncMock,
-        return_value=True,
+    with (
+        patch(
+            "custom_components.moonraker.coordinator._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
     ):
         yield
 

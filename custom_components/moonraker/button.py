@@ -1,32 +1,27 @@
 """Button platform for Moonraker integration."""
 
+from __future__ import annotations
+
+
 from collections.abc import Callable
-from dataclasses import dataclass
+from typing import Any, cast
 
+from homeassistant.components.button import ButtonEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
-
-from .const import DOMAIN, METHODS
+from .const import METHODS
+from .coordinator import MoonrakerDataUpdateCoordinator
+from .devices import macro
+from .devices.base import MoonrakerButtonDescription
 from .entity import BaseMoonrakerEntity
-
-
-@dataclass(frozen=True)
-class MoonrakerButtonDescription(ButtonEntityDescription):
-    """Class describing Mookraker button entities."""
-
-    press_fn: Callable | None = None
-    macro_object: str | None = None
-    button_name: str | None = None
-    icon: str | None = None
-    unit: str | None = None
-    device_class: str | None = None
-    entity_registry_enabled_default: bool = False
 
 
 BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     MoonrakerButtonDescription(
         key="emergency_stop",
-        name="Emergency Stop",
+        translation_key="emergency_stop",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_EMERGENCY_STOP
         ),
@@ -35,7 +30,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="pause_print",
-        name="Pause Print",
+        translation_key="pause_print",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_PRINT_PAUSE
         ),
@@ -44,7 +39,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="resume_print",
-        name="Resume Print",
+        translation_key="resume_print",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_PRINT_RESUME
         ),
@@ -53,7 +48,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="cancel_print",
-        name="Cancel Print",
+        translation_key="cancel_print",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_PRINT_CANCEL
         ),
@@ -62,7 +57,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="server_restart",
-        name="Server Restart",
+        translation_key="server_restart",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.SERVER_RESTART
         ),
@@ -70,7 +65,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="host_restart",
-        name="Host Restart",
+        translation_key="host_restart",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.HOST_RESTART
         ),
@@ -78,7 +73,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="firmware_restart",
-        name="Firmware Restart",
+        translation_key="firmware_restart",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_FIRMWARE_RESTART
         ),
@@ -86,7 +81,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="host_shutdown",
-        name="Host Shutdown",
+        translation_key="host_shutdown",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.HOST_SHUTDOWN
         ),
@@ -94,7 +89,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="machine_update_refresh",
-        name="Machine Update Refresh",
+        translation_key="machine_update_refresh",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.MACHINE_UPDATE_REFRESH
         ),
@@ -102,7 +97,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="reset_totals",
-        name="Reset Totals",
+        translation_key="reset_totals",
         entity_registry_enabled_default=False,
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.SERVER_HISTORY_RESET_TOTALS
@@ -111,7 +106,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="start_print_from_queue",
-        name="Start Print from Queue",
+        translation_key="start_print_from_queue",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.SERVER_JOB_QUEUE_START
         ),
@@ -119,7 +114,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="home_x_axis",
-        name="Home X Axis",
+        translation_key="home_x_axis",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_GCODE_SCRIPT, {"script": "G28 X"}
         ),
@@ -128,7 +123,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="home_y_axis",
-        name="Home Y Axis",
+        translation_key="home_y_axis",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_GCODE_SCRIPT, {"script": "G28 Y"}
         ),
@@ -137,7 +132,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="home_z_axis",
-        name="Home Z Axis",
+        translation_key="home_z_axis",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_GCODE_SCRIPT, {"script": "G28 Z"}
         ),
@@ -146,7 +141,7 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
     ),
     MoonrakerButtonDescription(
         key="home_all_axes",
-        name="Home All Axes",
+        translation_key="home_all_axes",
         press_fn=lambda button: button.coordinator.async_send_data(
             METHODS.PRINTER_GCODE_SCRIPT, {"script": "G28"}
         ),
@@ -156,110 +151,44 @@ BUTTONS: tuple[MoonrakerButtonDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
     await async_setup_basic_buttons(coordinator, entry, async_add_entities)
     await async_setup_macros(coordinator, entry, async_add_entities)
     await async_setup_services(coordinator, entry, async_add_entities)
 
 
-async def async_setup_basic_buttons(coordinator, entry, async_add_entities):
+async def async_setup_basic_buttons(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set optional button platform."""
     async_add_entities([MoonrakerButton(coordinator, entry, desc) for desc in BUTTONS])
 
 
-async def async_setup_macros(coordinator, entry, async_add_entities):
+async def async_setup_macros(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set optional button platform."""
-    cmds = await coordinator.async_fetch_data(METHODS.PRINTER_GCODE_HELP)
-    object_list = await coordinator.async_fetch_data(METHODS.PRINTER_OBJECTS_LIST)
-    object_names = (
-        set(object_list.get("objects", []))
-        if isinstance(object_list, dict)
-        else set()
-    )
-    macro_objects = {obj for obj in object_names if obj.startswith("gcode_macro ")}
-
-    macros = []
-    added_macro_objects = False
-    for cmd, desc in cmds.items():
-        enable_by_default = False
-        macro_object = None
-        if desc == "G-Code macro":
-            enable_by_default = False
-        candidate_object = f"gcode_macro {cmd}"
-        if candidate_object in macro_objects or (
-            not macro_objects and desc == "G-Code macro"
-        ):
-            macro_object = candidate_object
-            coordinator.add_query_objects(macro_object, None)
-            added_macro_objects = True
-
-        macros.append(
-            MoonrakerButtonDescription(
-                key=cmd,
-                name="Macro " + cmd.lower().replace("_", " ").title(),
-                press_fn=lambda button: button.coordinator.async_send_data(
-                    METHODS.PRINTER_GCODE_SCRIPT, {"script": button.invoke_name}
-                ),
-                icon="mdi:play",
-                entity_registry_enabled_default=enable_by_default,
-                macro_object=macro_object,
-            )
-        )
-
+    macros = await macro.build_macro_buttons(coordinator)
     async_add_entities([MoonrakerButton(coordinator, entry, desc) for desc in macros])
-    if added_macro_objects:
-        await coordinator.async_request_refresh()
 
 
-async def async_setup_services(coordinator, entry, async_add_entities):
+async def async_setup_services(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Create Start, Stop, and Restart buttons for all allowed services."""
-    system_info = await coordinator.async_fetch_data(METHODS.MACHINE_SYSTEM_INFO)
-    available_services = system_info["system_info"].get("available_services", [])
-
-    service_buttons = []
-
-    for service in available_services:
-        # Stop button
-        service_buttons.append(
-            MoonrakerButtonDescription(
-                key=f"stop_{service.lower()}",
-                name=f"Stop {service}",
-                press_fn=lambda button, svc=service: button.coordinator.async_send_data(
-                    METHODS.MACHINE_SERVICES_STOP, {"service": svc}
-                ),
-                icon="mdi:stop-circle-outline",
-                entity_registry_visible_default=False,
-            )
-        )
-
-        # Start button
-        service_buttons.append(
-            MoonrakerButtonDescription(
-                key=f"start_{service.lower()}",
-                name=f"Start {service}",
-                press_fn=lambda button, svc=service: button.coordinator.async_send_data(
-                    METHODS.MACHINE_SERVICES_START, {"service": svc}
-                ),
-                icon="mdi:play-circle-outline",
-                entity_registry_visible_default=False,
-            )
-        )
-
-        # Restart button
-        service_buttons.append(
-            MoonrakerButtonDescription(
-                key=f"restart_{service.lower()}",
-                name=f"Restart {service}",
-                press_fn=lambda button, svc=service: button.coordinator.async_send_data(
-                    METHODS.MACHINE_SERVICES_RESTART, {"service": svc}
-                ),
-                icon="mdi:restart",
-                entity_registry_visible_default=False,
-            )
-        )
-
+    service_buttons = await macro.build_service_buttons(coordinator)
     async_add_entities(
         [MoonrakerButton(coordinator, entry, desc) for desc in service_buttons]
     )
@@ -268,17 +197,26 @@ async def async_setup_services(coordinator, entry, async_add_entities):
 class MoonrakerButton(BaseMoonrakerEntity, ButtonEntity):
     """MoonrakerSensor Sensor class."""
 
-    def __init__(self, coordinator, entry, description):
+    def __init__(
+        self,
+        coordinator: MoonrakerDataUpdateCoordinator,
+        entry: ConfigEntry,
+        description: MoonrakerButtonDescription,
+    ) -> None:
         """Intit."""
         super().__init__(coordinator, entry)
         self.coordinator = coordinator
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_name = description.name
+        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+        if description.translation_key:
+            self._attr_translation_key = description.translation_key
+        else:
+            self._attr_name = cast(str | None, description.name)
         self._attr_has_entity_name = True
         self.entity_description = description
         self._attr_icon = description.icon
         self.invoke_name = description.key
-        self.press_fn = description.press_fn
+        assert description.press_fn is not None
+        self.press_fn: Callable[[Any], Any] = description.press_fn
         self.macro_object = description.macro_object
 
     async def async_press(self) -> None:
@@ -286,7 +224,7 @@ class MoonrakerButton(BaseMoonrakerEntity, ButtonEntity):
         await self.press_fn(self)
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return macro variables as entity attributes."""
         if not self.macro_object:
             return None

@@ -353,7 +353,7 @@ async def test_fan_generic_speed_entity_created(
         for entry in entity_registry.entities.values()
         if entry.platform == DOMAIN and entry.domain == NUMBER_DOMAIN
     }
-    unique_id = f"{config_entry.entry_id}_fan_generic_{fan_name}_speed"
+    unique_id = f"{config_entry.unique_id}_fan_generic_{fan_name}_speed"
     entity_id = number_entries[unique_id]
 
     state = hass.states.get(entity_id)
@@ -400,7 +400,7 @@ async def test_fan_generic_speed_set_value(
         for entry in entity_registry.entities.values()
         if entry.platform == DOMAIN and entry.domain == NUMBER_DOMAIN
     }
-    unique_id = f"{config_entry.entry_id}_fan_generic_{fan_name}_speed"
+    unique_id = f"{config_entry.unique_id}_fan_generic_{fan_name}_speed"
     entity_id = number_entries[unique_id]
 
     with patch(
@@ -496,7 +496,7 @@ async def test_temperature_fan_config_fallbacks(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data.coordinator
     assert "temperature_fan missing_config" in coordinator.data["status"]
     assert "temperature_fan missing_config" in coordinator.query_obj[OBJ]
 
@@ -509,7 +509,7 @@ async def test_temperature_fan_config_fallbacks(hass):
     }
     available_ids = sorted(number_entries)
     expected_missing_unique_id = (
-        f"{config_entry.entry_id}_temperature_fan_missing_config_target_control"
+        f"{config_entry.unique_id}_temperature_fan_missing_config_target_control"
     )
     assert expected_missing_unique_id in number_entries
     missing_entity_id = number_entries[expected_missing_unique_id]
@@ -519,7 +519,7 @@ async def test_temperature_fan_config_fallbacks(hass):
     assert missing_state.attributes["max"] == 100.0
 
     uppercase_unique_id = (
-        f"{config_entry.entry_id}_temperature_fan_FAN_CASE_target_control"
+        f"{config_entry.unique_id}_temperature_fan_FAN_CASE_target_control"
     )
     uppercase_entity_id = number_entries.get(uppercase_unique_id)
     assert uppercase_entity_id is not None, available_ids
@@ -553,6 +553,16 @@ async def test_heater_generic_number_config_fallbacks(hass):
             }
             self.loaded = []
             self.query_obj = {}
+            self.objects_list = {
+                "objects": [
+                    "heater_generic MIXED_CASE",
+                    "heater_generic orphan_heater",
+                ]
+            }
+            self.configfile_settings = {
+                "heater_generic mixed_case": {"max_temp": 85.0, "min_temp": 30.0},
+                "temperature_fan missing_config": {},
+            }
             self._listeners = []
 
         async def async_fetch_data(self, method, params=None, quiet=False):
@@ -592,7 +602,7 @@ async def test_heater_generic_number_config_fallbacks(hass):
             return lambda: None
 
     coordinator = FakeCoordinator(hass)
-    entry = SimpleNamespace(entry_id="test")
+    entry = SimpleNamespace(entry_id="test", unique_id="test")
     added_entities = []
 
     def capture_entities(entities):
@@ -651,7 +661,7 @@ async def test_number_with_no_status_key_defaults_to_zero(hass):
             return lambda: None
 
     coordinator = DummyCoordinator()
-    entry = SimpleNamespace(entry_id="noop")
+    entry = SimpleNamespace(entry_id="noop", unique_id="noop")
     desc = MoonrakerNumberSensorDescription(
         key="stateless_control",
         sensor_name="gcode_move",

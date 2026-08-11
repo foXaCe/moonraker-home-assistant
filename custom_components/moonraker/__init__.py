@@ -1,184 +1,56 @@
 """Moonraker integration for Home Assistant."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
-from contextlib import suppress
-import os.path
-import uuid
-from datetime import timedelta
-from typing import Any
+from dataclasses import dataclass
 
 import async_timeout
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.const import EVENT_HOMEASSISTANT_STOP
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.typing import ConfigType
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.typing import ConfigType
+from moonraker_api import ClientNotAuthenticatedError  # type: ignore[import-not-found]
 
 from .api import MoonrakerApiClient
 from .const import (
     CONF_API_KEY,
-    CONF_PORT,
     CONF_PRINTER_NAME,
-    CONF_OPTION_POLLING_RATE,
-    CONF_OPTION_QUIET_UNREACHABLE,
     CONF_TLS,
     CONF_URL,
-    DEFAULT_PORT,
     DOMAIN,
     HOSTNAME,
     METHODS,
-    OBJ,
     PLATFORMS,
+    SERVER_INFO_UUID,
     TIMEOUT,
-    PRINTSTATES,
 )
-from .sensor import SENSORS
-
-SCAN_INTERVAL = timedelta(seconds=30)
+from .coordinator import (
+    MoonrakerDataUpdateCoordinator,
+    _async_is_tcp_reachable,
+    _entry_port,
+    _log_unreachable,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-_LOGGER.debug("loading moonraker init")
 
-_GCODE_ROOT = "gcodes"
+@dataclass
+class MoonrakerData:
+    """Runtime data stored on the config entry."""
 
-
-def _quiet_unreachable_logs(entry: ConfigEntry) -> bool:
-    """Return whether unreachable Moonraker connection logs should be debug-only."""
-    return entry.options.get(CONF_OPTION_QUIET_UNREACHABLE, False)
-
-
-def _log_unreachable(entry: ConfigEntry, message: str, *args: Any) -> None:
-    """Log unreachable-device messages at the configured verbosity."""
-    if _quiet_unreachable_logs(entry):
-        _LOGGER.debug(message, *args)
-    else:
-        _LOGGER.warning(message, *args)
+    client: MoonrakerApiClient
+    coordinator: MoonrakerDataUpdateCoordinator
 
 
-def _normalize_moonraker_port(port: int | str | None) -> int:
-    """Return the effective Moonraker port used at runtime."""
-    if port is None or port == "":
-        return DEFAULT_PORT
-    return int(port)
-
-
-def _entry_port(entry: ConfigEntry) -> int:
-    """Return the effective Moonraker port for a config entry."""
-    return _normalize_moonraker_port(entry.data.get(CONF_PORT, DEFAULT_PORT))
-
-
-async def _async_is_tcp_reachable(host: str, port: int | str | None) -> bool:
-    """Return whether a TCP connection to the Moonraker endpoint can be opened."""
-    writer: asyncio.StreamWriter | None = None
-    try:
-        async with async_timeout.timeout(TIMEOUT):
-            _reader, writer = await asyncio.open_connection(
-                host, _normalize_moonraker_port(port)
-            )
-        return True
-    except (TimeoutError, OSError, TypeError, ValueError):
-        return False
-    finally:
-        if writer is not None:
-            writer.close()
-            with suppress(OSError):
-                await writer.wait_closed()
-
-
-async def async_setup(_hass: HomeAssistant, _config: ConfigType):
-    """Set up this integration using YAML is not supported."""
-    return True
-
-
-def _normalize_gcode_path(filename: str | None) -> tuple[str, str | None]:
-    """Return normalized filename and detected root for gcode metadata calls."""
-    if not filename:
-        return "", None
-
-    normalized = filename.replace("\\", "/").strip()
-    if not normalized:
-        return "", None
-
-    normalized = normalized.lstrip("/")
-    lowered = normalized.casefold()
-
-    root = None
-    root_prefix = f"{_GCODE_ROOT}/"
-    if lowered.startswith(root_prefix):
-        root = _GCODE_ROOT
-        normalized = normalized[len(root_prefix) :]
-    else:
-        marker = f"/{_GCODE_ROOT}/"
-        idx = lowered.find(marker)
-        if idx != -1:
-            root = _GCODE_ROOT
-            normalized = normalized[idx + len(marker) :]
-
-    return normalized, root
-
-
-def _strip_gcode_root(path: str | None, root: str | None) -> str:
-    """Strip a known root prefix from a path for URL usage."""
-    if not path:
-        return ""
-
-    normalized = path.replace("\\", "/").strip()
-    if not normalized:
-        return ""
-
-    normalized = normalized.lstrip("/")
-    if not root:
-        root_prefix = f"{_GCODE_ROOT}/"
-        lowered = normalized.casefold()
-        if lowered.startswith(root_prefix):
-            return normalized[len(root_prefix) :]
-        return normalized
-
-    lowered = normalized.casefold()
-    root_prefix = f"{root}/"
-    if lowered.startswith(root_prefix):
-        return normalized[len(root_prefix) :]
-
-    marker = f"/{root}/"
-    idx = lowered.find(marker)
-    if idx != -1:
-        return normalized[idx + len(marker) :]
-
-    return normalized
-
-
-def _build_thumbnail_path(
-    gcode_dir: str, thumbnail_path: str | None, root: str | None
-) -> str | None:
-    """Build a thumbnail path relative to the gcodes root."""
-    normalized = _strip_gcode_root(thumbnail_path, root)
-    if not normalized:
-        return None
-
-    if normalized.startswith("./"):
-        normalized = normalized[2:]
-    if not normalized:
-        return None
-
-    if not gcode_dir:
-        return normalized
-
-    gcode_dir = gcode_dir.replace("\\", "/").strip("/")
-    if not gcode_dir:
-        return normalized
-
-    if normalized.startswith(f"{gcode_dir}/"):
-        return normalized
-
-    return os.path.join(gcode_dir, normalized)
-
-
-def get_user_name(hass: HomeAssistant, entry: ConfigEntry):
-    """Get username."""
+def get_user_name(hass: HomeAssistant, entry: ConfigEntry) -> str | None:
+    """Return the user-defined name of the printer device, if any."""
     device_registry = dr.async_get(hass)
     device_entries = dr.async_entries_for_config_entry(device_registry, entry.entry_id)
 
@@ -188,27 +60,38 @@ def get_user_name(hass: HomeAssistant, entry: ConfigEntry):
     return device_entries[0].name_by_user
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
+async def async_setup(_hass: HomeAssistant, _config: ConfigType) -> bool:
+    """Set up this integration using YAML is not supported."""
+    return True
+
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate a config entry to a newer version."""
+    _LOGGER.info("Migrating %s from version %s", entry.title, entry.version)
+
+    if entry.version == 1:
+        hass.config_entries.async_update_entry(entry, version=2)
+
+    _LOGGER.info("Migration of %s to version %s completed", entry.title, entry.version)
+    return True
+
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up this integration using UI."""
 
-    global SCAN_INTERVAL
-
-    if hass.data.get(DOMAIN) is None:
-        hass.data.setdefault(DOMAIN, {})
-
-    custom_name = get_user_name(hass, entry)
-
-    url = entry.data.get(CONF_URL)
+    url = entry.data[CONF_URL]
     port = _entry_port(entry)
     tls = entry.data.get(CONF_TLS, False)
     api_key = entry.data.get(CONF_API_KEY, "")
+    custom_name = get_user_name(hass, entry)
     printer_name = (
         entry.data.get(CONF_PRINTER_NAME) if custom_name is None else custom_name
     )
 
-    SCAN_INTERVAL = timedelta(seconds=entry.options.get(CONF_OPTION_POLLING_RATE, 30))
-
-    api = MoonrakerApiClient(
+    client = MoonrakerApiClient(
         url,
         async_get_clientsession(hass, verify_ssl=False),
         port=port,
@@ -227,27 +110,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
             raise ConfigEntryNotReady(f"Error connecting to {url}:{port}")
 
         async with async_timeout.timeout(TIMEOUT):
-            await api.start()
-            printer_info = await api.client.call_method("printer.info")
-            _LOGGER.debug(printer_info)
+            await client.start()
+            printer_info = await client.client.call_method(METHODS.PRINTER_INFO.value)
+            server_info = await client.client.call_method(METHODS.SERVER_INFO.value)
+            _LOGGER.debug("printer.info: %s", printer_info)
 
-            if printer_name == "" or printer_name is None:
-                api_device_name = printer_info[HOSTNAME]
-            else:
-                api_device_name = printer_name
+            printer_uuid = (
+                server_info.get(SERVER_INFO_UUID) if server_info else None
+            ) or printer_info.get(HOSTNAME)
+            if not printer_uuid:
+                raise ConfigEntryNotReady(
+                    "Moonraker did not report an instance UUID or hostname"
+                )
 
-            hass.config_entries.async_update_entry(entry, title=api_device_name)
+            api_device_name = (
+                printer_info[HOSTNAME] if printer_name in (None, "") else printer_name
+            )
+
+        if entry.unique_id is None:
+            hass.config_entries.async_update_entry(entry, unique_id=printer_uuid)
+            await _async_migrate_entity_unique_ids(hass, entry)
+
+        hass.config_entries.async_update_entry(entry, title=api_device_name)
 
     except ConfigEntryNotReady:
-        await api.stop()
+        await client.stop()
         raise
+    except ClientNotAuthenticatedError as exc:
+        _LOGGER.warning("Cannot configure moonraker instance, authentication failed")
+        await client.stop()
+        raise ConfigEntryAuthFailed("Invalid Moonraker API key") from exc
     except Exception as exc:
         _LOGGER.warning("Cannot configure moonraker instance")
-        await api.stop()
+        await client.stop()
         raise ConfigEntryNotReady(f"Error connecting to {url}:{port}") from exc
 
     coordinator = MoonrakerDataUpdateCoordinator(
-        hass, client=api, config_entry=entry, api_device_name=api_device_name
+        hass,
+        client=client,
+        config_entry=entry,
+        api_device_name=api_device_name,
     )
 
     await coordinator.async_refresh()
@@ -255,14 +157,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if not coordinator.last_update_success:
         raise ConfigEntryNotReady
 
-    hass.data[DOMAIN][entry.entry_id] = coordinator
-    for platform in PLATFORMS:
-        coordinator.platforms.append(platform)
+    entry.runtime_data = MoonrakerData(client=client, coordinator=coordinator)
+    coordinator.platforms = list(PLATFORMS)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # A single refresh after all platforms subscribed their printer objects:
+    # populating the initial entity values with one API cycle instead of one
+    # refresh per platform (each platform refresh would re-query the full object
+    # set and slow setup down on real printers).
+    await coordinator.async_refresh()
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
-    async def send_gcode_service(service_call):
+    async def _stop_client(_event: Event) -> None:
+        """Stop the Moonraker client on HA shutdown."""
+        await client.stop()
+
+    entry.async_on_unload(
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, _stop_client)
+    )
+
+    _register_send_gcode_service(hass)
+
+    return True
+
+
+@callback
+def _register_send_gcode_service(hass: HomeAssistant) -> None:
+    """Register the send_gcode service once for all Moonraker entries."""
+
+    async def send_gcode_service(service_call: ServiceCall) -> None:
         """Handle the service call to send g-code."""
         gcode = service_call.data["gcode"]
         raw_device_ids = service_call.data["device_id"]
@@ -284,14 +208,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
         processed_entries: set[str] = set()
 
-        domain_entries = hass.data.get(DOMAIN, {})
-
         for device_id in device_ids:
             device = dev_reg.async_get(device_id)
             entry_ids: set[str] = set()
 
             if device is None:
-                if device_id in domain_entries:
+                if device_id in _loaded_entry_ids(hass):
                     entry_ids.add(device_id)
                 else:
                     _LOGGER.warning("Unknown Moonraker device_id %s", device_id)
@@ -306,14 +228,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                         if domain == DOMAIN:
                             entry_ids.add(identifier)
 
-            if not entry_ids:
-                _LOGGER.warning(
-                    "Moonraker device %s has no associated config entries", device_id
-                )
-                continue
-
             for entry_id in entry_ids:
-                if entry_id not in hass.data.get(DOMAIN, {}):
+                if entry_id not in _loaded_entry_ids(hass):
                     _LOGGER.warning(
                         "Moonraker device %s entry %s not loaded",
                         device_id,
@@ -330,272 +246,48 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
                     "Sending G-code via entry %s for device %s", entry_id, device_id
                 )
 
-                await hass.data[DOMAIN][entry_id].async_send_data(
+                await _loaded_entry_ids(hass)[entry_id].async_send_data(
                     METHODS.PRINTER_GCODE_SCRIPT,
                     {"script": script},
                 )
 
-    # Register the new service
+    if hass.services.has_service(DOMAIN, "send_gcode"):
+        return
+
     hass.services.async_register(DOMAIN, "send_gcode", send_gcode_service)
 
-    return True
+
+def _loaded_entry_ids(hass: HomeAssistant) -> dict[str, MoonrakerDataUpdateCoordinator]:
+    """Return the {entry_id: coordinator} map of loaded Moonraker entries."""
+    loaded: dict[str, MoonrakerDataUpdateCoordinator] = {}
+    for entry in hass.config_entries.async_entries(DOMAIN):
+        if entry.state.value == "loaded":
+            data: MoonrakerData | None = getattr(entry, "runtime_data", None)
+            if data is not None:
+                loaded[entry.entry_id] = data.coordinator
+    return loaded
 
 
-async def _printer_objects_updater(coordinator):
-    return await coordinator._async_fetch_data(
-        METHODS.PRINTER_OBJECTS_QUERY, coordinator.query_obj
-    )
+async def _async_migrate_entity_unique_ids(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Migrate entity unique_ids from the entry_id prefix to the entry unique_id."""
 
+    @callback
+    def _update_unique_id(entity: er.RegistryEntry) -> dict[str, str] | None:
+        old_prefix = f"{entry.entry_id}_"
+        if entity.unique_id.startswith(old_prefix):
+            new_suffix = entity.unique_id[len(old_prefix) :]
+            return {"new_unique_id": f"{entry.unique_id}_{new_suffix}"}
+        return None
 
-async def _printer_info_updater(coordinator):
-    return {
-        "printer.info": await coordinator._async_fetch_data(METHODS.PRINTER_INFO, None)
-    }
-
-
-async def _gcode_file_detail_updater(coordinator):
-    data = await coordinator._async_fetch_data(
-        METHODS.PRINTER_OBJECTS_QUERY, coordinator.query_obj
-    )
-    filename = ""
-    status = data.get("status") or {}
-    print_stats = status.get("print_stats") or {}
-    filename = print_stats.get("filename") or ""
-    if not filename:
-        virtual_sdcard = status.get("virtual_sdcard") or {}
-        filename = virtual_sdcard.get("file_path") or ""
-
-    return await coordinator._async_get_gcode_file_detail(filename)
-
-
-class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching data from the API."""
-
-    def __init__(
-        self,
-        hass: HomeAssistant,
-        client: MoonrakerApiClient,
-        config_entry: ConfigEntry,
-        api_device_name: str,
-    ) -> None:
-        """Initialize."""
-        self.moonraker = client
-        self.platforms = []
-        self.updaters = [
-            _printer_objects_updater,
-            _printer_info_updater,
-            _gcode_file_detail_updater,
-        ]
-        self.hass = hass
-        self.config_entry = config_entry
-        self.api_device_name = api_device_name
-        self.query_obj = {OBJ: {}}
-        self.load_sensor_data(SENSORS)
-        self.add_query_objects("virtual_sdcard", "file_path")
-
-        super().__init__(
-            hass,
-            _LOGGER,
-            name=DOMAIN,
-            update_interval=SCAN_INTERVAL,
-            config_entry=config_entry,
-        )
-
-    async def _async_update_data(self):
-        """Update data via library."""
-        data = {}
-
-        for updater in self.updaters:
-            data.update(await updater(self))
-
-        # --- Dynamic polling logic ---
-        prev_state = getattr(self, "_last_print_state", None)
-        current_state = data.get("status", {}).get("print_stats", {}).get("state")
-        if current_state != prev_state:
-            if current_state == PRINTSTATES.PRINTING.value:
-                self.update_interval = timedelta(seconds=2)
-            else:
-                self.update_interval = timedelta(seconds=30)
-            self._schedule_refresh()
-        self._last_print_state = current_state
-        # --- end dynamic polling logic ---
-
-        return data
-
-    async def _async_get_gcode_file_detail(self, gcode_filename):
-        return_gcode = {
-            "thumbnails_path": None,
-            "estimated_time": 1,
-            "filament_total": 1,
-            "layer_count": None,
-            "layer_height": None,
-            "object_height": None,
-            "first_layer_height": None,
-            "gcode_start_byte": None,
-            "gcode_end_byte": None,
-        }
-        if not gcode_filename:
-            return return_gcode
-
-        # Get prefix of the filename to get the appropriate thumbnail
-        normalized_filename, root = _normalize_gcode_path(gcode_filename)
-        if not normalized_filename:
-            return return_gcode
-
-        dirname = os.path.dirname(normalized_filename)
-
-        query_object = {"filename": normalized_filename}
-        gcode = await self._async_fetch_data(
-            METHODS.SERVER_FILES_METADATA, query_object
-        )
-        return_gcode["estimated_time"] = gcode.get("estimated_time", 0)
-        return_gcode["object_height"] = gcode.get("object_height", 0)
-        return_gcode["filament_total"] = gcode.get("filament_total", 0)
-        return_gcode["layer_count"] = gcode.get("layer_count", 0)
-        return_gcode["layer_height"] = gcode.get("layer_height", 0)
-        return_gcode["first_layer_height"] = gcode.get("first_layer_height", 0)
-        return_gcode["gcode_start_byte"] = gcode.get("gcode_start_byte")
-        return_gcode["gcode_end_byte"] = gcode.get("gcode_end_byte")
-
-        thumbnails = gcode.get("thumbnails")
-        if not thumbnails or not isinstance(thumbnails, list):
-            return return_gcode
-
-        best_path = None
-        best_size = -1.0
-        for thumbnail in thumbnails:
-            if not isinstance(thumbnail, dict):
-                continue
-            relative_path = thumbnail.get("relative_path")
-            if not relative_path:
-                continue
-            size = thumbnail.get("size")
-            size_value = None
-            if size is not None:
-                try:
-                    size_value = float(size)
-                except (TypeError, ValueError):
-                    size_value = None
-
-            if size_value is None:
-                if best_path is None:
-                    best_path = relative_path
-                continue
-
-            if size_value > best_size:
-                best_size = size_value
-                best_path = relative_path
-
-        if not best_path:
-            return return_gcode
-
-        return_gcode["thumbnails_path"] = _build_thumbnail_path(
-            dirname, best_path, root
-        )
-        return return_gcode
-
-    async def _async_fetch_data(
-        self, query_path: METHODS, query_object, quiet: bool = False
-    ):
-        myuuid = str(uuid.uuid4())
-        _LOGGER.debug(f"fetching data, uuid: {myuuid}, from: {query_path.value}")
-        _LOGGER.debug(f"fetching, uuid: {myuuid}, object: {query_object}")
-        if not self.moonraker.client.is_connected:
-            if not await _async_is_tcp_reachable(
-                self.config_entry.data.get(CONF_URL),
-                _entry_port(self.config_entry),
-            ):
-                _log_unreachable(
-                    self.config_entry,
-                    "connection to moonraker down; %s:%s is unreachable",
-                    self.config_entry.data.get(CONF_URL),
-                    _entry_port(self.config_entry),
-                )
-                raise UpdateFailed()
-            _LOGGER.warning("connection to moonraker down, restarting")
-            await self.moonraker.start()
-        try:
-            if query_object is None:
-                result = await self.moonraker.client.call_method(query_path.value)
-            else:
-                result = await self.moonraker.client.call_method(
-                    query_path.value, **query_object
-                )
-            if not quiet:
-                _LOGGER.debug(f"Query Result, uuid: {myuuid}: {result}")
-            return result
-        except Exception as exception:
-            raise UpdateFailed() from exception
-
-    async def _async_send_data(self, query_path: METHODS, query_obj) -> None:
-        if not self.moonraker.client.is_connected:
-            if not await _async_is_tcp_reachable(
-                self.config_entry.data.get(CONF_URL),
-                _entry_port(self.config_entry),
-            ):
-                _log_unreachable(
-                    self.config_entry,
-                    "connection to moonraker down; %s:%s is unreachable",
-                    self.config_entry.data.get(CONF_URL),
-                    _entry_port(self.config_entry),
-                )
-                raise UpdateFailed()
-            _LOGGER.warning("connection to moonraker down, restarting")
-            await self.moonraker.start()
-        try:
-            if query_obj is None:
-                await self.moonraker.client.call_method(query_path.value)
-            else:
-                await self.moonraker.client.call_method(query_path.value, **query_obj)
-        except Exception as exception:
-            raise UpdateFailed() from exception
-
-    async def async_fetch_data(
-        self,
-        query_path: METHODS,
-        query_obj: dict[str, Any] | None = None,
-        quiet: bool = False,
-    ):
-        """Fetch data from moonraker."""
-        return await self._async_fetch_data(query_path, query_obj, quiet=quiet)
-
-    async def async_send_data(
-        self, query_path: METHODS, query_obj: dict[str, Any] | None = None
-    ):
-        """Send data to moonraker."""
-        return await self._async_send_data(query_path, query_obj)
-
-    def add_data_updater(self, updater):
-        """Update the data."""
-        self.updaters.append(updater)
-
-    def load_sensor_data(self, sensor_list):
-        """Load sensor data, so we can poll the right object."""
-        for sensor in sensor_list:
-            for subscriptions in sensor.subscriptions:
-                self.add_query_objects(subscriptions[0], subscriptions[1])
-
-    def add_query_objects(self, query_object: str, result_key: str | None):
-        """Build the list of object we want to retreive from the server."""
-        if result_key is None:
-            self.query_obj[OBJ][query_object] = None
-            return
-
-        if (
-            query_object in self.query_obj[OBJ]
-            and self.query_obj[OBJ][query_object] is None
-        ):
-            return
-
-        if query_object not in self.query_obj[OBJ]:
-            self.query_obj[OBJ][query_object] = []
-        if result_key not in self.query_obj[OBJ][query_object]:
-            self.query_obj[OBJ][query_object].append(result_key)
+    await er.async_migrate_entries(hass, entry.entry_id, _update_unique_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Handle removal of an entry."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    data: MoonrakerData = entry.runtime_data
+    coordinator = data.coordinator
     unloaded = all(
         await asyncio.gather(
             *[
@@ -606,12 +298,20 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     )
     if unloaded:
-        hass.data[DOMAIN].pop(entry.entry_id)
+        await data.client.stop()
+        del entry.runtime_data
+
+        remaining = [
+            e
+            for e in hass.config_entries.async_entries(DOMAIN)
+            if e.state.value == "loaded" and e is not entry
+        ]
+        if not remaining and hass.services.has_service(DOMAIN, "send_gcode"):
+            hass.services.async_remove(DOMAIN, "send_gcode")
 
     return unloaded
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reload config entry."""
-    hass.data[DOMAIN][entry.entry_id].config_entry = entry
     await hass.config_entries.async_reload(entry.entry_id)

@@ -1,6 +1,10 @@
 """Constants for Moonraker."""
 
+from __future__ import annotations
+
+
 from enum import Enum
+from typing import Any
 
 from homeassistant.const import Platform
 
@@ -19,6 +23,7 @@ PLATFORMS = [
     Platform.SWITCH,
     Platform.NUMBER,
     Platform.LIGHT,
+    Platform.UPDATE,
 ]
 
 CONF_API_KEY = "api_key"
@@ -36,6 +41,7 @@ CONF_OPTION_THUMBNAIL_PORT = "thumbnail_port"
 # API dict keys
 HOSTNAME = "hostname"
 OBJ = "objects"
+SERVER_INFO_UUID = "uuid"
 
 # API timeout
 TIMEOUT = 10
@@ -72,6 +78,7 @@ class METHODS(Enum):
     SERVER_FILES_METADATA = "server.files.metadata"
     SERVER_HISTORY_TOTALS = "server.history.totals"
     SERVER_HISTORY_RESET_TOTALS = "server.history.reset_totals"
+    SERVER_INFO = "server.info"
     SERVER_JOB_QUEUE_STATUS = "server.job_queue.status"
     SERVER_JOB_QUEUE_START = "server.job_queue.start"
     SERVER_RESTART = "server.restart"
@@ -83,7 +90,7 @@ class ExtendedEnum(Enum):
     """Extended Enum class."""
 
     @classmethod
-    def list(cls):
+    def list(cls) -> list[Any]:
         """Return a list of all enum values."""
         return [c.value for c in cls]
 
