@@ -113,7 +113,7 @@ async def build_fan_speed_numbers(
         desc = MoonrakerNumberSensorDescription(
             key="fan_speed",
             sensor_name="fan",
-            name="Fan Speed",
+            translation_key="fan_speed",
             status_key="speed",
             subscriptions=[("fan", "speed")],
             icon="mdi:fan",

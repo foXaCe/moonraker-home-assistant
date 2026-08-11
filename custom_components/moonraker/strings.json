@@ -228,6 +228,29 @@
       "home_all_axes": {
         "name": "Home All Axes"
       }
+    },
+    "binary_sensor": {
+      "update_available": {
+        "name": "Update Available"
+      }
+    },
+    "camera": {
+      "thumbnail": {
+        "name": "Thumbnail"
+      }
+    },
+    "update": {
+      "system_update": {
+        "name": "System update"
+      }
+    },
+    "number": {
+      "speed_factor": {
+        "name": "Speed Factor"
+      },
+      "fan_speed": {
+        "name": "Fan Speed"
+      }
     }
   }
 }

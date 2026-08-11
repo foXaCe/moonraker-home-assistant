@@ -107,7 +107,7 @@ async def async_setup_update_binary_sensors(
         key="update_available",
         sensor_name="update_available",
         is_on_fn=update_available_fn,
-        name="Update Available",
+        translation_key="update_available",
         subscriptions=[("status", "update_available")],
         icon="mdi:update",
         device_class=BinarySensorDeviceClass.UPDATE,
@@ -162,7 +162,10 @@ class MoonrakerBinarySensor(BaseMoonrakerEntity, BinarySensorEntity):
         self.is_on_fn: Callable[[Any], bool] = description.is_on_fn
         self.sensor_name = description.sensor_name
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-        self._attr_name = cast(str | None, description.name)
+        if description.translation_key:
+            self._attr_translation_key = description.translation_key
+        else:
+            self._attr_name = cast(str | None, description.name)
         self._attr_has_entity_name = True
         self._attr_native_value = self._evaluate_is_on()
         self._attr_icon = description.icon
