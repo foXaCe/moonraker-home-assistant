@@ -43,6 +43,10 @@ async def build_temperature_sensors(
         "aht20_f",
         "sht3x",
     ]
+    # Stepper drivers expose a "temperature" field that stays null unless the
+    # driver actually reports a die temperature, so they are probed before an
+    # entity is created for them.
+    driver_keys = ["tmc2240"]
 
     sensors: list[MoonrakerSensorDescription] = []
     object_list = coordinator.objects_list or {"objects": []}
@@ -66,6 +70,8 @@ async def build_temperature_sensors(
             continue
         if split_obj[0] in environmental_keys and len(split_obj) > 1:
             discovery_objects[obj] = None
+        elif split_obj[0] in driver_keys and len(split_obj) > 1:
+            discovery_objects[obj] = ["temperature"]
         elif split_obj[0] == "hall_filament_width_sensor":
             discovery_objects[obj] = None
 
@@ -82,6 +88,13 @@ async def build_temperature_sensors(
         if not split_obj:
             continue
         if split_obj[0] in temperature_keys and len(split_obj) > 1:
+            # A driver that reports no die temperature would only ever produce an
+            # unknown sensor, so it is skipped entirely.
+            if (
+                split_obj[0] in driver_keys
+                and (discovery_status.get(obj) or {}).get("temperature") is None
+            ):
+                continue
             # If we already have a temperature_sensor <name>, don't also create a Temp entity
             # from bme280/aht10/etc for the same <name>.
             if not (
