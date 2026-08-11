@@ -22,8 +22,8 @@ Similarly to the camera, the thumbnail port can be configured.
 
 |config|
 
-.. |cam_image| image:: https://raw.githubusercontent.com/marcolivierarsenault/moonraker-home-assistant/main/assets/camera.png
-.. |thum_image| image:: https://raw.githubusercontent.com/marcolivierarsenault/moonraker-home-assistant/main/assets/thumbnail.png
+.. |cam_image| image:: https://raw.githubusercontent.com/foXaCe/moonraker-home-assistant/main/assets/camera.png
+.. |thum_image| image:: https://raw.githubusercontent.com/foXaCe/moonraker-home-assistant/main/assets/thumbnail.png
 .. |config| image:: /_static/config.png
 
 

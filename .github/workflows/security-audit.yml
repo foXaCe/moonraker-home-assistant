@@ -1,0 +1,85 @@
+name: Security audit
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-audit:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install pip-audit
+        run: python3 -m pip install pip-audit
+
+      - name: Audit integration requirements (manifest.json)
+        run: |
+          jq -r '.requirements[]' custom_components/moonraker/manifest.json > /tmp/manifest_reqs.txt
+          pip-audit --requirement /tmp/manifest_reqs.txt --strict
+
+      # Les CVE des deps de dev sont transitives (pins HA de test) : elles se corrigent
+      # via Renovate au bump suivant — avertissement, pas d'échec bloquant.
+      - name: Audit development requirements (warning only)
+        run: |
+          pip-audit --requirement requirements.txt \
+            || echo "::warning::CVE dans les dépendances de dev (voir log) — corrigées par Renovate au prochain bump"
+
+  osv-scanner:
+    name: OSV-Scanner
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # --no-resolve : la résolution transitive deps.dev est instable (rpc Internal) ;
+      # les arbres résolus sont déjà couverts par pip-audit, osv-scanner audite les pins.
+      - uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
+        with:
+          scan-args: |
+            --recursive
+            --no-resolve
+            ./
+
+  secret-scan:
+    name: Gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-review:
+    name: Dependency review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure

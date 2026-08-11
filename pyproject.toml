@@ -1,0 +1,9 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".git"]
+addopts = "--strict-markers --cov=custom_components"
+asyncio_mode = "auto"

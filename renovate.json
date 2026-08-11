@@ -1,0 +1,53 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    "group:allNonMajor",
+    ":dependencyDashboard",
+    ":separatePatchReleases",
+    ":timezone(Europe/Paris)"
+  ],
+  "forkProcessing": "enabled",
+  "labels": ["dependencies"],
+  "assignees": ["foXaCe"],
+  "prCreation": "immediate",
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "minimumReleaseAge": "3 days",
+  "configMigration": true,
+  "vulnerabilityAlerts": {
+    "labels": ["security", "dependencies"],
+    "minimumReleaseAge": null,
+    "prCreation": "immediate"
+  },
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch", "pin", "digest"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "labels": ["dependencies", "github-actions"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "major"],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "matchPackageNames": ["pytest-homeassistant-custom-component"],
+      "groupName": "homeassistant test deps"
+    },
+    {
+      "matchPackageNames": ["/^ruff/"],
+      "groupName": "lint tools",
+      "automerge": true,
+      "platformAutomerge": true
+    }
+  ],
+  "ignorePaths": ["**/.venv/**", "**/venv/**"]
+}

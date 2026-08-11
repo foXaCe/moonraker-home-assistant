@@ -80,7 +80,7 @@ async def _async_is_tcp_reachable(host: str, port: int | str | None) -> bool:
                 host, _normalize_moonraker_port(port)
             )
         return True
-    except (asyncio.TimeoutError, OSError, TypeError, ValueError):
+    except (TimeoutError, OSError, TypeError, ValueError):
         return False
     finally:
         if writer is not None:
