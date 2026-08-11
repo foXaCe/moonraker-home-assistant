@@ -75,7 +75,7 @@ async def async_setup_speed_factor(
     desc = MoonrakerNumberSensorDescription(
         key="speed_factor",
         sensor_name="gcode_move",
-        name="Speed Factor",
+        translation_key="speed_factor",
         status_key="speed_factor",
         subscriptions=[("gcode_move", "speed_factor")],
         icon="mdi:speedometer",
@@ -197,7 +197,10 @@ class MoonrakerNumber(BaseMoonrakerEntity, NumberEntity):
         self.entity_description: MoonrakerNumberSensorDescription = description
         self.sensor_name = description.sensor_name
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-        self._attr_name = cast(str | None, description.name)
+        if description.translation_key:
+            self._attr_translation_key = description.translation_key
+        else:
+            self._attr_name = cast(str | None, description.name)
         self._attr_has_entity_name = True
         self._attr_icon = description.icon
         self._attr_native_max_value = cast(

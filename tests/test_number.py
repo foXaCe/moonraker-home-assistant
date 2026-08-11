@@ -676,3 +676,56 @@ async def test_number_with_no_status_key_defaults_to_zero(hass):
     # Even if coordinator data gains values, the missing status key keeps the value at zero
     coordinator.data["status"]["gcode_move"] = {"speed_factor": 1.5}
     assert number._extract_native_value() == 0.0
+
+
+async def test_pwm_output_pin_entity_created(hass, get_data, get_printer_objects_list):
+    """A PWM output pin is exposed as a Number entity with generated name."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="pwm", unique_id="test"
+    )
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    entity = entity_registry.async_get("number.mainsail_output_pin_pwm")
+    assert entity is not None
+    assert entity.unique_id == "test_output_pin pwm"
+
+    state = hass.states.get("number.mainsail_output_pin_pwm")
+    assert state is not None
+    assert state.state == "50.0"
+
+
+async def test_pwm_output_pin_named_branch(hass):
+    """PWM output pins with generated names keep their name (no translation key)."""
+    from types import SimpleNamespace
+    from custom_components.moonraker.devices.base import (
+        MoonrakerNumberSensorDescription,
+    )
+    from custom_components.moonraker.number import MoonrakerPWMOutputPin
+
+    class DummyCoordinator:
+        def __init__(self):
+            self.data = {"status": {"output_pin test_pin": {"value": 0.25}}}
+            self.api_device_name = "Mainsail"
+            self._listeners = []
+
+        async def async_send_data(self, *_a, **_k):
+            return None
+
+        def async_add_listener(self, cb):
+            self._listeners.append(cb)
+            return lambda: None
+
+    coord = DummyCoordinator()
+    entry = SimpleNamespace(unique_id="test")
+    desc = MoonrakerNumberSensorDescription(
+        key="output_pin test_pin",
+        sensor_name="output_pin test_pin",
+        name="Output Pin Test Pin",
+        subscriptions=[("output_pin test_pin", "value")],
+    )
+    pin = MoonrakerPWMOutputPin(coord, entry, desc)
+    assert pin.name == "Output Pin Test Pin"
+    assert pin.native_value == 25.0

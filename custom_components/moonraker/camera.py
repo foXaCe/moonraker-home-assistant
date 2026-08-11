@@ -152,7 +152,9 @@ class PreviewCamera(Camera):
         )
         self.url = config_entry.data.get(CONF_URL)
         self.coordinator = coordinator
-        self._attr_name = f"{coordinator.api_device_name} Thumbnail"
+        self._attr_translation_key = "thumbnail"
+        self._attr_has_entity_name = True
+        self._attr_icon = "mdi:printer-3d-nozzle"
         self._attr_unique_id = f"{config_entry.unique_id}_thumbnail"
         self._session = session
         self._current_pic = None

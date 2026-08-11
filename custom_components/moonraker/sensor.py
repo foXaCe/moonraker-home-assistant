@@ -36,6 +36,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="state",
         translation_key="printer_state",
+        icon="mdi:printer-3d",
         value_fn=lambda sensor: sensor.coordinator.data["printer.info"]["state"],
         device_class=SensorDeviceClass.ENUM,
         options=PRINTERSTATES.list(),
@@ -44,6 +45,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="message",
         translation_key="printer_message",
+        icon="mdi:message-text-outline",
         value_fn=lambda sensor: sensor.coordinator.data["printer.info"][
             "state_message"
         ],
@@ -52,6 +54,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="print_state",
         translation_key="current_print_state",
+        icon="mdi:printer-3d-nozzle",
         value_fn=lambda sensor: sensor.coordinator.data["status"]["print_stats"][
             "state"
         ],
@@ -62,6 +65,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="print_message",
         translation_key="current_print_message",
+        icon="mdi:message-text-outline",
         value_fn=lambda sensor: sensor.coordinator.data["status"]["print_stats"][
             "message"
         ],
@@ -70,6 +74,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="idle_timeout_state",
         translation_key="idle_timeout_state",
+        icon="mdi:timer-sand",
         value_fn=lambda sensor: helpers.format_idle_timeout_state(
             sensor.coordinator.data
         ),
@@ -80,6 +85,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="display_message",
         translation_key="current_display_message",
+        icon="mdi:monitor",
         value_fn=lambda sensor: (
             sensor.coordinator.data["status"]["display_status"]["message"]
             if sensor.coordinator.data["status"]["display_status"]["message"]
@@ -91,6 +97,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
     MoonrakerSensorDescription(
         key="filename",
         translation_key="filename",
+        icon="mdi:file",
         value_fn=lambda sensor: sensor.empty_result_when_not_printing(
             sensor.coordinator.data["status"]["print_stats"]["filename"]
         ),
@@ -476,6 +483,7 @@ async def async_setup_queue_sensors(
         MoonrakerSensorDescription(
             key="queue_state",
             translation_key="queue_state",
+            icon="mdi:playlist-play",
             value_fn=lambda sensor: sensor.coordinator.data["queue"]["queue_state"],
             subscriptions=[("queue_state")],
         ),
@@ -519,6 +527,7 @@ async def async_setup_spoolman_sensors(
         MoonrakerSensorDescription(
             key="spool_id",
             translation_key="spool_id",
+            icon="mdi:tape-measure",
             value_fn=lambda sensor: sensor.coordinator.data["spoolman"].get("spool_id"),
             subscriptions=[("spool_id")],
         ),

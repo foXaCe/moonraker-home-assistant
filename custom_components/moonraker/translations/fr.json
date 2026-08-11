@@ -228,6 +228,29 @@
       "home_all_axes": {
         "name": "Initialiser tous les axes"
       }
+    },
+    "binary_sensor": {
+      "update_available": {
+        "name": "Mise à jour disponible"
+      }
+    },
+    "camera": {
+      "thumbnail": {
+        "name": "Miniature"
+      }
+    },
+    "update": {
+      "system_update": {
+        "name": "Mise à jour système"
+      }
+    },
+    "number": {
+      "speed_factor": {
+        "name": "Facteur de vitesse"
+      },
+      "fan_speed": {
+        "name": "Vitesse du ventilateur"
+      }
     }
   }
 }

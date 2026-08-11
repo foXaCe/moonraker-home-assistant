@@ -69,6 +69,7 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
+    _attr_icon = "mdi:update"
 
     def __init__(
         self,
@@ -83,7 +84,10 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
         super().__init__(coordinator, entry)
         self._component = component
         self._attr_unique_id = f"{entry.unique_id}_update_{component}"
-        self._attr_name = f"{component.title()} update"
+        if component == "system":
+            self._attr_translation_key = "system_update"
+        else:
+            self._attr_name = f"{component.title()} update"
         self._attr_has_entity_name = True
         self._attr_title = title
         self._attr_installed_version = installed_version
