@@ -192,7 +192,13 @@
         "name": "Impression la plus longue"
       },
       "queue_state": {
-        "name": "État de la file d'attente"
+        "name": "État de la file d'attente",
+        "state": {
+          "ready": "Prête",
+          "loading": "Chargement",
+          "starting": "Démarrage",
+          "paused": "En pause"
+        }
       },
       "jobs_in_queue": {
         "name": "Travaux en file d'attente"

@@ -192,7 +192,13 @@
         "name": "Longest Print"
       },
       "queue_state": {
-        "name": "Queue State"
+        "name": "Queue State",
+        "state": {
+          "ready": "Ready",
+          "loading": "Loading",
+          "starting": "Starting",
+          "paused": "Paused"
+        }
       },
       "jobs_in_queue": {
         "name": "Jobs in queue"

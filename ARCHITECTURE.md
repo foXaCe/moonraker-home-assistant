@@ -118,7 +118,7 @@ round-trips, so the call count is what the integration optimises for:
 
 ## Quality gates
 
-- `scripts/test_strict` — 342 tests, 100 % statement coverage.
+- `scripts/test_strict` — 343 tests, 100 % statement coverage.
 - `ruff check` / `ruff format` — clean.
 - `mypy --strict custom_components/moonraker/` — clean.
 - `hassfest` — clean (config-entry-only `CONFIG_SCHEMA`).

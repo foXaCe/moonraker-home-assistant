@@ -192,7 +192,13 @@
         "name": "Impresión más larga"
       },
       "queue_state": {
-        "name": "Estado de la cola"
+        "name": "Estado de la cola",
+        "state": {
+          "ready": "Lista",
+          "loading": "Cargando",
+          "starting": "Iniciando",
+          "paused": "En pausa"
+        }
       },
       "jobs_in_queue": {
         "name": "Trabajos en cola"

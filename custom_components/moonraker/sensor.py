@@ -23,7 +23,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import helpers
-from .const import METHODS, PRINTERSTATES, PRINTSTATES
+from .const import METHODS, PRINTERSTATES, PRINTSTATES, QUEUESTATES
 from .coordinator import SLOW_UPDATER_TTL
 from .coordinator import MoonrakerDataUpdateCoordinator
 from .devices import fan, mcu, thermal
@@ -505,7 +505,16 @@ async def async_setup_queue_sensors(
             key="queue_state",
             translation_key="queue_state",
             icon="mdi:playlist-play",
-            value_fn=lambda sensor: sensor.coordinator.data["queue"]["queue_state"],
+            # An unlisted value would make Home Assistant reject the state, so
+            # anything Moonraker adds later reads as unknown instead.
+            value_fn=lambda sensor: (
+                sensor.coordinator.data["queue"]["queue_state"]
+                if sensor.coordinator.data["queue"]["queue_state"]
+                in QUEUESTATES.list()
+                else None
+            ),
+            device_class=SensorDeviceClass.ENUM,
+            options=QUEUESTATES.list(),
             subscriptions=[("queue_state")],
         ),
         MoonrakerSensorDescription(

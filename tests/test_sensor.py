@@ -1391,3 +1391,20 @@ async def test_driver_without_temperature_creates_no_sensor(hass, get_data):
     await hass.async_block_till_done()
 
     assert hass.states.get("sensor.mainsail_temperature_tmc2240_stepper_x") is None
+
+
+async def test_queue_state_unknown_value_is_not_reported(
+    hass, get_default_api_response
+):
+    """A queue state Moonraker adds later reads as unknown, not as an error."""
+    get_default_api_response["queue_state"] = "some_future_state"
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.mainsail_etat_de_la_file_d_attente")
+    assert state is None or state.state == "unknown"

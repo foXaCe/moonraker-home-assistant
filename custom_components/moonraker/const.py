@@ -111,6 +111,15 @@ class PRINTSTATES(ExtendedEnum):
     ERROR = "error"
 
 
+class QUEUESTATES(ExtendedEnum):
+    """Job queue state, as documented by Moonraker."""
+
+    READY = "ready"
+    LOADING = "loading"
+    STARTING = "starting"
+    PAUSED = "paused"
+
+
 class PRINTERSTATES(ExtendedEnum):
     """Printer state."""
 
