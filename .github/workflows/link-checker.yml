@@ -16,10 +16,15 @@ permissions:
   issues: write
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   link-checker:
     runs-on: ubuntu-latest
     name: Check links in all Markdown files
+    timeout-minutes: 15
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
