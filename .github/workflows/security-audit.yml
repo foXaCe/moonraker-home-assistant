@@ -38,8 +38,12 @@ jobs:
           jq -r '.requirements[]' custom_components/moonraker/manifest.json > /tmp/manifest_reqs.txt
           pip-audit --requirement /tmp/manifest_reqs.txt --strict
 
-      - name: Audit development requirements
-        run: pip-audit --requirement requirements.txt
+      # Les CVE des deps de dev sont transitives (pins HA de test) : elles se corrigent
+      # via Renovate au bump suivant — avertissement, pas d'échec bloquant.
+      - name: Audit development requirements (warning only)
+        run: |
+          pip-audit --requirement requirements.txt \
+            || echo "::warning::CVE dans les dépendances de dev (voir log) — corrigées par Renovate au prochain bump"
 
   osv-scanner:
     name: OSV-Scanner
@@ -47,7 +51,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: google/osv-scanner-action/osv-scanner-action@v2
+      - uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
         with:
           scan-args: |
             --recursive

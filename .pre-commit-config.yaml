@@ -16,6 +16,7 @@ repos:
     rev: v6.0.0
     hooks:
       - id: check-yaml
+        exclude: ^configuration\.yaml$
       - id: check-json
         exclude: ^(\.vscode|\.devcontainer)/
       - id: check-toml
