@@ -15,14 +15,14 @@ Klipper printer
 
 ## Key modules
 
-| Module | Role |
-|---|---|
-| `__init__.py` | Config entry setup, `DataUpdateCoordinator`, connection lifecycle |
-| `config_flow.py` | UI configuration flow (host, port, API key, printer name) |
-| `const.py` | Domain constants, platform list, `VERSION` (managed by release-please) |
-| `sensor.py`, `binary_sensor.py`, … | Entity platforms fed by the coordinator |
-| `camera.py` | Webcam stream + printed-object thumbnail |
-| `translations/` | UI translations (en, es, fr, …) |
+| Module                             | Role                                                                   |
+| ---------------------------------- | ---------------------------------------------------------------------- |
+| `__init__.py`                      | Config entry setup, `DataUpdateCoordinator`, connection lifecycle      |
+| `config_flow.py`                   | UI configuration flow (host, port, API key, printer name)              |
+| `const.py`                         | Domain constants, platform list, `VERSION` (managed by release-please) |
+| `sensor.py`, `binary_sensor.py`, … | Entity platforms fed by the coordinator                                |
+| `camera.py`                        | Webcam stream + printed-object thumbnail                               |
+| `translations/`                    | UI translations (en, es, fr, …)                                        |
 
 ## Release pipeline
 

@@ -13,4 +13,3 @@ integration and reload your devices.
 #. Select **Delete**
 #. Restart Home Assistant
 #. After Reload, go back to **Integration** and re add all your printers
-
