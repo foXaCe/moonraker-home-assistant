@@ -21,3 +21,9 @@ configuration.yaml
 .lycheecache
 link-check-report.md
 node_modules
+.pytest_cache
+.mypy_cache
+htmlcov
+.DS_Store
+Thumbs.db
+*.py[cod]

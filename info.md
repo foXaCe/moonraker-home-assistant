@@ -32,21 +32,21 @@ This allows you home assistant to connect to your Klipper 3D printer and display
 
 ## Screenshots
 
-![sensor](https://raw.githubusercontent.com/marcolivierarsenault/moonraker-home-assistant/main/assets/sensors.png)
-![button](https://raw.githubusercontent.com/marcolivierarsenault/moonraker-home-assistant/main/assets/button.png)
-![camera](https://raw.githubusercontent.com/marcolivierarsenault/moonraker-home-assistant/main/assets/camera.png)
-![thumbnial](https://raw.githubusercontent.com/marcolivierarsenault/moonraker-home-assistant/main/assets/thumbnail.png)
+![sensor](https://raw.githubusercontent.com/foXaCe/moonraker-home-assistant/main/assets/sensors.png)
+![button](https://raw.githubusercontent.com/foXaCe/moonraker-home-assistant/main/assets/button.png)
+![camera](https://raw.githubusercontent.com/foXaCe/moonraker-home-assistant/main/assets/camera.png)
+![thumbnial](https://raw.githubusercontent.com/foXaCe/moonraker-home-assistant/main/assets/thumbnail.png)
 
 <!---->
 
 ---
 
-[integration_blueprint]: https://github.com/marcolivierarsenault/moonraker-home-assistant
-[commits-shield]: https://img.shields.io/github/commit-activity/y/marcolivierarsenault/moonraker-home-assistant.svg?style=for-the-badge
-[commits]: https://github.com/marcolivierarsenault/moonraker-home-assistant/commits/master
+[integration_blueprint]: https://github.com/foXaCe/moonraker-home-assistant
+[commits-shield]: https://img.shields.io/github/commit-activity/y/foXaCe/moonraker-home-assistant.svg?style=for-the-badge
+[commits]: https://github.com/foXaCe/moonraker-home-assistant/commits/main
 [hacs]: https://hacs.xyz
 [hacsbadge]: https://img.shields.io/badge/HACS-Custom-orange.svg?style=for-the-badge
-[license]: https://github.com/marcolivierarsenault/moonraker-home-assistant/blob/main/LICENSE
-[license-shield]: https://img.shields.io/github/license/marcolivierarsenault/moonraker-home-assistant.svg?style=for-the-badge
-[releases-shield]: https://img.shields.io/github/v/release/marcolivierarsenault/moonraker-home-assistant.svg?style=for-the-badge
-[releases]: https://github.com/marcolivierarsenault/moonraker-home-assistant/releases
+[license]: https://github.com/foXaCe/moonraker-home-assistant/blob/main/LICENSE
+[license-shield]: https://img.shields.io/github/license/foXaCe/moonraker-home-assistant.svg?style=for-the-badge
+[releases-shield]: https://img.shields.io/github/v/release/foXaCe/moonraker-home-assistant.svg?style=for-the-badge
+[releases]: https://github.com/foXaCe/moonraker-home-assistant/releases
