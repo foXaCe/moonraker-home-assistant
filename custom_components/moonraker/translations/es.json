@@ -2,7 +2,26 @@
   "config": {
     "step": {
       "user": {
+        "title": "Moonraker",
         "description": "Información de conexión de Moonraker",
+        "data": {
+          "url": "Servidor",
+          "port": "Puerto",
+          "tls": "Usa TLS",
+          "api_key": "Clave de la API (opcional)",
+          "printer_name": "Nombre de la impresora (por defecto, el nombre del servidor)"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Se requiere volver a autenticarse",
+        "description": "La clave de la API de Moonraker no es válida. Proporciona una nueva clave.",
+        "data": {
+          "api_key": "Clave de la API"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigurar Moonraker",
+        "description": "Actualiza los ajustes de conexión de esta instancia de Moonraker.",
         "data": {
           "url": "Servidor",
           "port": "Puerto",
@@ -17,12 +36,20 @@
       "port_error": "Puerto no válido, debe ser un número entre 1 y 65535.",
       "api_key_error": "Clave de la API no válida, debe tener 32 caracteres alfanuméricos.",
       "printer_name_error": "Nombre de la impresora no válido.",
-      "printer_connection_error": "Fallo al conectar."
+      "cannot_connect": "Fallo al conectar con Moonraker.",
+      "invalid_auth": "Autenticación no válida. Comprueba tu clave de la API."
+    },
+    "abort": {
+      "reauth_successful": "Se ha vuelto a autenticar correctamente.",
+      "already_configured": "Esta instancia de Moonraker ya está configurada.",
+      "cannot_connect": "Fallo al conectar con Moonraker.",
+      "reconfigure_successful": "La instancia de Moonraker se ha reconfigurado correctamente."
     }
   },
   "options": {
     "step": {
       "init": {
+        "title": "Configuración",
         "data": {
           "polling_rate": "Tasa de sondeo de la integración (s)",
           "quiet_unreachable_devices": "Registrar los mensajes de conexión de impresora inalcanzable solo en nivel DEBUG",
@@ -30,8 +57,199 @@
           "camera_snapshot_url": "URL de la instantánea de la cámara",
           "camera_port": "Puerto de la cámara",
           "thumbnail_port": "Puerto de la miniatura"
+        }
+      }
+    }
+  },
+  "services": {
+    "send_gcode": {
+      "name": "Enviar G-code",
+      "description": "Envía un comando G-code personalizado a la impresora.",
+      "fields": {
+        "device_id": {
+          "name": "Impresora",
+          "description": "Dispositivo Moonraker que debe recibir el G-code."
         },
-        "title": "Configuración"
+        "gcode": {
+          "name": "G-code",
+          "description": "Comando G-code que se enviará a la impresora."
+        }
+      }
+    }
+  },
+  "issues": {
+    "invalid_api_key": {
+      "title": "La clave de la API de Moonraker no es válida",
+      "description": "Moonraker ha rechazado la clave de la API de {entry_title}. Vuelve a autenticarte para restablecer la conexión."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "printer_state": {
+        "name": "Estado de la impresora"
+      },
+      "printer_message": {
+        "name": "Mensaje de la impresora"
+      },
+      "current_print_state": {
+        "name": "Estado de la impresión actual"
+      },
+      "current_print_message": {
+        "name": "Mensaje de la impresión actual"
+      },
+      "idle_timeout_state": {
+        "name": "Estado del tiempo de inactividad"
+      },
+      "current_display_message": {
+        "name": "Mensaje mostrado actualmente"
+      },
+      "filename": {
+        "name": "Nombre del archivo"
+      },
+      "print_projected_total_duration": {
+        "name": "Duración total prevista de la impresión"
+      },
+      "print_time_left": {
+        "name": "Tiempo de impresión restante"
+      },
+      "print_eta": {
+        "name": "Fin estimado de la impresión"
+      },
+      "slicer_print_duration_estimate": {
+        "name": "Duración de impresión estimada por el laminador"
+      },
+      "slicer_print_time_left_estimate": {
+        "name": "Tiempo restante estimado por el laminador"
+      },
+      "print_duration": {
+        "name": "Duración de la impresión"
+      },
+      "filament_used": {
+        "name": "Filamento utilizado"
+      },
+      "progress": {
+        "name": "Progreso"
+      },
+      "print_speed": {
+        "name": "Velocidad de impresión"
+      },
+      "total_layer": {
+        "name": "Capas totales"
+      },
+      "current_layer": {
+        "name": "Capa actual"
+      },
+      "toolhead_position_x": {
+        "name": "Posición del cabezal X"
+      },
+      "toolhead_position_y": {
+        "name": "Posición del cabezal Y"
+      },
+      "toolhead_position_z": {
+        "name": "Posición del cabezal Z"
+      },
+      "object_height": {
+        "name": "Altura del objeto"
+      },
+      "system_load": {
+        "name": "Carga del sistema"
+      },
+      "memory_used": {
+        "name": "Memoria utilizada"
+      },
+      "totals_jobs": {
+        "name": "Número total de impresiones"
+      },
+      "totals_print_time": {
+        "name": "Tiempo de impresión total"
+      },
+      "totals_filament_used": {
+        "name": "Filamento total utilizado"
+      },
+      "longest_print": {
+        "name": "Impresión más larga"
+      },
+      "queue_state": {
+        "name": "Estado de la cola"
+      },
+      "jobs_in_queue": {
+        "name": "Trabajos en cola"
+      },
+      "spool_id": {
+        "name": "Identificador de la bobina"
+      },
+      "machine_update_system": {
+        "name": "Actualización del sistema"
+      }
+    },
+    "button": {
+      "emergency_stop": {
+        "name": "Parada de emergencia"
+      },
+      "pause_print": {
+        "name": "Pausar la impresión"
+      },
+      "resume_print": {
+        "name": "Reanudar la impresión"
+      },
+      "cancel_print": {
+        "name": "Cancelar la impresión"
+      },
+      "server_restart": {
+        "name": "Reiniciar el servidor"
+      },
+      "host_restart": {
+        "name": "Reiniciar el host"
+      },
+      "firmware_restart": {
+        "name": "Reiniciar el firmware"
+      },
+      "host_shutdown": {
+        "name": "Apagar el host"
+      },
+      "machine_update_refresh": {
+        "name": "Actualizar las actualizaciones"
+      },
+      "reset_totals": {
+        "name": "Restablecer los totales"
+      },
+      "start_print_from_queue": {
+        "name": "Iniciar la impresión desde la cola"
+      },
+      "home_x_axis": {
+        "name": "Llevar el eje X al origen"
+      },
+      "home_y_axis": {
+        "name": "Llevar el eje Y al origen"
+      },
+      "home_z_axis": {
+        "name": "Llevar el eje Z al origen"
+      },
+      "home_all_axes": {
+        "name": "Llevar todos los ejes al origen"
+      }
+    },
+    "binary_sensor": {
+      "update_available": {
+        "name": "Actualización disponible"
+      }
+    },
+    "camera": {
+      "thumbnail": {
+        "name": "Miniatura"
+      }
+    },
+    "update": {
+      "system_update": {
+        "name": "Actualización del sistema"
+      }
+    },
+    "number": {
+      "speed_factor": {
+        "name": "Factor de velocidad"
+      },
+      "fan_speed": {
+        "name": "Velocidad del ventilador"
       }
     }
   }

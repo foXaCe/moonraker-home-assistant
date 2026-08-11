@@ -21,14 +21,16 @@ def bypass_connect_client_fixture():
 
 # test switches
 @pytest.mark.parametrize(
-    "switch, switch_type",
+    ("switch", "switch_type", "target"),
     [
-        ("mainsail_light", "power"),
-        ("mainsail_printer", "power"),
-        ("mainsail_output_pin_digital", "pin"),
+        ("mainsail_light", "power", "light"),
+        ("mainsail_printer", "power", "printer"),
+        ("mainsail_sortie_digital", "pin", "digital"),
     ],
 )
-async def test_switch_turn_on(hass, switch, switch_type, get_default_api_response):
+async def test_switch_turn_on(
+    hass, switch, switch_type, target, get_default_api_response
+):
     """Test."""
     config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
     config_entry.add_to_hass(hass)
@@ -51,26 +53,28 @@ async def test_switch_turn_on(hass, switch, switch_type, get_default_api_respons
         if switch_type == "power":
             mock_api.assert_any_call(
                 METHODS.MACHINE_DEVICE_POWER_POST_DEVICE.value,
-                device=switch.split("_")[1],
+                device=target,
                 action="on",
             )
         elif switch_type == "pin":
             mock_api.assert_any_call(
                 METHODS.PRINTER_GCODE_SCRIPT.value,
-                script=f"SET_PIN PIN={switch.split('_')[3]} VALUE=1",
+                script=f"SET_PIN PIN={target} VALUE=1",
             )
 
 
 # test switches
 @pytest.mark.parametrize(
-    "switch, switch_type",
+    ("switch", "switch_type", "target"),
     [
-        ("mainsail_light", "power"),
-        ("mainsail_printer", "power"),
-        ("mainsail_output_pin_digital", "pin"),
+        ("mainsail_light", "power", "light"),
+        ("mainsail_printer", "power", "printer"),
+        ("mainsail_sortie_digital", "pin", "digital"),
     ],
 )
-async def test_switch_turn_off(hass, switch, switch_type, get_default_api_response):
+async def test_switch_turn_off(
+    hass, switch, switch_type, target, get_default_api_response
+):
     """Test."""
     config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
     config_entry.add_to_hass(hass)
@@ -93,11 +97,11 @@ async def test_switch_turn_off(hass, switch, switch_type, get_default_api_respon
         if switch_type == "power":
             mock_api.assert_any_call(
                 METHODS.MACHINE_DEVICE_POWER_POST_DEVICE.value,
-                device=switch.split("_")[1],
+                device=target,
                 action="off",
             )
         elif switch_type == "pin":
             mock_api.assert_any_call(
                 METHODS.PRINTER_GCODE_SCRIPT.value,
-                script=f"SET_PIN PIN={switch.split('_')[3]} VALUE=0",
+                script=f"SET_PIN PIN={target} VALUE=0",
             )

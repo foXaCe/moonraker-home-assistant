@@ -76,7 +76,7 @@ async def async_setup_optional_binary_sensors(
             base_name = (
                 split_obj[1].replace("_", " ").title()
                 if len(split_obj) > 1
-                else "Filament Width Sensor"
+                else "Capteur de largeur de filament"
             )
             sensors.append(
                 MoonrakerBinarySensorDescription(

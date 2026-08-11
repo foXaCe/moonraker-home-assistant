@@ -158,13 +158,13 @@
         "name": "Mémoire utilisée"
       },
       "totals_jobs": {
-        "name": "Totals jobs"
+        "name": "Nombre total d'impressions"
       },
       "totals_print_time": {
-        "name": "Totals Print Time"
+        "name": "Temps d'impression total"
       },
       "totals_filament_used": {
-        "name": "Totals Filament Used"
+        "name": "Filament total utilisé"
       },
       "longest_print": {
         "name": "Impression la plus longue"
