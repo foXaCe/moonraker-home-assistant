@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.camera import Camera
 from homeassistant.components.mjpeg.camera import MjpegCamera
@@ -22,6 +23,7 @@ from .const import (
     METHODS,
     PRINTSTATES,
 )
+from .coordinator import MoonrakerDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_PORT = 80
@@ -46,7 +48,7 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up the available Moonraker camera."""
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data.coordinator
 
     camera_cnt = 0
 
@@ -95,7 +97,13 @@ async def async_setup_entry(
 class MoonrakerCamera(MjpegCamera):
     """Representation of an Moonraker Camera Stream."""
 
-    def __init__(self, config_entry, coordinator, camera, camera_id) -> None:
+    def __init__(
+        self,
+        config_entry: ConfigEntry,
+        coordinator: MoonrakerDataUpdateCoordinator,
+        camera: dict[str, Any],
+        camera_id: int,
+    ) -> None:
         """Initialize as a subclass of MjpegCamera."""
 
         self._attr_device_info = DeviceInfo(
@@ -114,14 +122,14 @@ class MoonrakerCamera(MjpegCamera):
         else:
             self.url = f"http://{config_entry.data.get(CONF_URL)}:{self.port}"
 
-        _LOGGER.info(f"Connecting to camera: {self.url}{camera['stream_url']}")
+        _LOGGER.info("Connecting to camera: %s%s", self.url, camera["stream_url"])
 
         super().__init__(
             device_info=self._attr_device_info,
             mjpeg_url=f"{self.url}{camera['stream_url']}",
             name=f"{coordinator.api_device_name} {camera['name']}",
             still_image_url=f"{self.url}{camera['snapshot_url']}",
-            unique_id=f"{config_entry.entry_id}_{camera['name']}_{camera_id}",
+            unique_id=f"{config_entry.unique_id}_{camera['name']}_{camera_id}",
         )
 
 
@@ -130,7 +138,12 @@ class PreviewCamera(Camera):
 
     _attr_is_streaming = False
 
-    def __init__(self, config_entry, coordinator, session) -> None:
+    def __init__(
+        self,
+        config_entry: ConfigEntry,
+        coordinator: MoonrakerDataUpdateCoordinator,
+        session: Any,
+    ) -> None:
         """Initialize as a subclass of Camera for the Thumbnail Preview."""
 
         super().__init__()
@@ -140,7 +153,7 @@ class PreviewCamera(Camera):
         self.url = config_entry.data.get(CONF_URL)
         self.coordinator = coordinator
         self._attr_name = f"{coordinator.api_device_name} Thumbnail"
-        self._attr_unique_id = f"{config_entry.entry_id}_thumbnail"
+        self._attr_unique_id = f"{config_entry.unique_id}_thumbnail"
         self._session = session
         self._current_pic = None
         self._current_path = ""
@@ -169,7 +182,7 @@ class PreviewCamera(Camera):
 
         new_path = self.coordinator.data["thumbnails_path"]
 
-        _LOGGER.debug(f"Thumbnail new_path: {new_path}")
+        _LOGGER.debug("Thumbnail new_path: %s", new_path)
         if self._current_path == new_path and self._current_pic is not None:
             _LOGGER.debug("no change in thumbnail, returning cached")
             return self._current_pic

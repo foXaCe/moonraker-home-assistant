@@ -12,7 +12,7 @@ from pytest_homeassistant_custom_component.common import (
 )
 
 from custom_components.moonraker.const import DOMAIN, PRINTSTATES
-from custom_components.moonraker.sensor import (
+from custom_components.moonraker.helpers import (
     _get_progress_value,
     calculate_current_layer,
     calculate_pct_job,
@@ -109,7 +109,9 @@ async def test_sensor_services_update(hass, get_data):
     """Test sensor services."""
     # Create a mock entry so we don't have to go through config flow
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -122,7 +124,7 @@ async def test_sensor_services_update(hass, get_data):
 
     async_fire_time_changed(
         hass,
-        dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
+        dt.datetime.now(dt.UTC) + dt.timedelta(minutes=5),
     )
     await hass.async_block_till_done()
 
@@ -134,7 +136,9 @@ async def test_sensor_services_update(hass, get_data):
 
 async def test_sensors(hass):
     """Test."""
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -152,7 +156,9 @@ async def test_idle_timeout_state_normalized(hass, get_data):
     """Idle timeout state should be title-cased regardless of source casing."""
     get_data["status"]["idle_timeout"]["state"] = "standby"
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -165,7 +171,9 @@ async def test_idle_timeout_state_complete(hass, get_data):
     """Idle timeout state should accept completed prints."""
     get_data["status"]["idle_timeout"]["state"] = "complete"
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -214,7 +222,9 @@ async def test_disabled_sensors(
     value,
 ):
     """Test."""
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -262,7 +272,9 @@ async def test_sensors_not_printing(
 ):
     """Test."""
     get_data["status"]["print_stats"]["state"] = PRINTSTATES.STANDBY.value
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -276,7 +288,9 @@ async def test_print_speed_missing_speed(hass, get_data):
     get_data["status"]["gcode_move"].pop("speed", None)
     get_data["status"].pop("motion_report", None)
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -291,7 +305,9 @@ async def test_print_speed_preheating(hass, get_data):
     get_data["status"]["toolhead"]["print_time"] = 0.0
     get_data["status"]["motion_report"]["live_velocity"] = 0.0
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -305,7 +321,9 @@ async def test_print_speed_without_motion_report(hass, get_data):
 
     get_data["status"].pop("motion_report", None)
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -319,7 +337,9 @@ async def test_opt_sensor_missing(hass, get_data, get_printer_objects_list):
     get_data["status"].pop("temperature_sensor mcu_temp", None)
     get_printer_objects_list["objects"].remove("temperature_sensor mcu_temp")
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -333,7 +353,9 @@ async def test_opt_probe_missing(hass, get_data, get_printer_objects_list):
     get_data["status"].pop("temperature_probe eddy_temp", None)
     get_printer_objects_list["objects"].remove("temperature_probe eddy_temp")
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -344,7 +366,9 @@ async def test_opt_probe_missing(hass, get_data, get_printer_objects_list):
 
 async def test_eta(hass):
     """Test."""
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -353,16 +377,18 @@ async def test_eta(hass):
 
     # ETA is rounded to nearest minute, so allow ±30 seconds tolerance
     assert dt.datetime.strptime(state.state, "%Y-%m-%dT%H:%M:%S%z") < dt.datetime.now(
-        dt.timezone.utc
+        dt.UTC
     ) + dt.timedelta(0, 1182.94 + 30)
     assert dt.datetime.strptime(state.state, "%Y-%m-%dT%H:%M:%S%z") > dt.datetime.now(
-        dt.timezone.utc
+        dt.UTC
     ) + dt.timedelta(0, 1182.94 - 30)
 
 
 async def test_slicer_time_left(hass, get_data):
     """Test."""
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -379,7 +405,9 @@ async def test_eta_no_current_data(hass, get_data):
     """Test."""
     get_data["status"]["print_stats"]["print_duration"] = 0
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -557,7 +585,9 @@ async def test_no_history_data(
             **get_gcode_help,
         },
     ):
-        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+        )
         config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
@@ -571,7 +601,9 @@ async def test_double_sensor_data(hass, get_data, get_printer_objects_list):
     get_printer_objects_list["objects"].append("heater_fan controller_fan")
     get_data["status"]["heater_fan controller_fan"] = {"speed": 0.1234, "rpm": 3000}
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -596,7 +628,9 @@ async def test_no_fan_sensor(hass, get_data, get_printer_objects_list):
     get_data["status"].pop("fan")
     get_printer_objects_list["objects"].remove("fan")
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -609,7 +643,9 @@ async def test_no_fan_rpm(hass, get_data, get_printer_objects_list):
     """Test."""
     get_data["status"]["fan"]["rpm"] = None
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -631,7 +667,9 @@ async def test_multi_mcu_sensor_data(hass, get_data, get_printer_objects_list):
         },
     }
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -656,7 +694,9 @@ async def test_multi_mcu_sensor_missing_data(hass, get_data, get_printer_objects
         "last_stats": None,
     }
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -678,7 +718,9 @@ async def test_current_layer_not_in_info(hass, get_data):
     """Test."""
     get_data["status"]["print_stats"]["info"].pop("current_layer")
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -691,7 +733,9 @@ async def test_total_layer_not_in_info(hass, get_data):
     """Test."""
     get_data["status"]["print_stats"]["info"].pop("total_layer")
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -704,7 +748,9 @@ async def test_total_layer_info_is_none(hass, get_data):
     """Test."""
     get_data["status"]["print_stats"]["info"] = None
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -717,7 +763,9 @@ async def test_total_layer_in_info_0(hass, get_data):
     """Test."""
     get_data["status"]["print_stats"]["info"]["total_layer"] = 0
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -730,7 +778,9 @@ async def test_total_layer_in_info_is_none(hass, get_data):
     """Test."""
     get_data["status"]["print_stats"]["info"]["total_layer"] = None
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -801,7 +851,9 @@ async def test_missing_estimated_time(hass, get_data, get_printer_info):
         "moonraker_api.MoonrakerClient.call_method",
         return_value={**get_data, **get_printer_info},
     ):
-        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+        )
         config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
@@ -1086,7 +1138,9 @@ async def test_update_no_system_update(hass, get_machine_update_status):
     """Test update available."""
     del get_machine_update_status["version_info"]["system"]
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -1100,7 +1154,9 @@ async def test_update_no_info_item(hass, get_machine_update_status):
     """Test update available."""
     get_machine_update_status["version_info"]["mainsail"] = {}
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -1124,7 +1180,9 @@ async def test_optional_sensor_is_none(hass, get_default_api_response):
         "moonraker_api.MoonrakerClient.call_method",
         return_value={**get_default_api_response},
     ):
-        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+        )
         config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
@@ -1160,7 +1218,9 @@ async def test_spoolman_spool_id_sensor_created(hass, get_default_api_response):
         "moonraker_api.MoonrakerClient.call_method",
         side_effect=_call_method_side_effect,
     ):
-        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+        )
         config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
@@ -1169,7 +1229,7 @@ async def test_spoolman_spool_id_sensor_created(hass, get_default_api_response):
     entries = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
 
     spool_entry = next(
-        (e for e in entries if e.unique_id == f"{config_entry.entry_id}_spool_id"),
+        (e for e in entries if e.unique_id == f"{config_entry.unique_id}_spool_id"),
         None,
     )
     assert spool_entry is not None
@@ -1194,7 +1254,9 @@ async def test_spoolman_spool_id_sensor_not_created_on_error(
         "moonraker_api.MoonrakerClient.call_method",
         side_effect=_call_method_side_effect,
     ):
-        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+        )
         config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
@@ -1203,7 +1265,7 @@ async def test_spoolman_spool_id_sensor_not_created_on_error(
     entries = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
 
     spool_entry = next(
-        (e for e in entries if e.unique_id == f"{config_entry.entry_id}_spool_id"),
+        (e for e in entries if e.unique_id == f"{config_entry.unique_id}_spool_id"),
         None,
     )
     assert spool_entry is None
@@ -1226,7 +1288,9 @@ async def test_spoolman_spool_id_sensor_null_value(hass, get_default_api_respons
         "moonraker_api.MoonrakerClient.call_method",
         side_effect=_call_method_side_effect,
     ):
-        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+        )
         config_entry.add_to_hass(hass)
         await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
@@ -1235,7 +1299,7 @@ async def test_spoolman_spool_id_sensor_null_value(hass, get_default_api_respons
     entries = er.async_entries_for_config_entry(entity_registry, config_entry.entry_id)
 
     spool_entry = next(
-        (e for e in entries if e.unique_id == f"{config_entry.entry_id}_spool_id"),
+        (e for e in entries if e.unique_id == f"{config_entry.unique_id}_spool_id"),
         None,
     )
     assert spool_entry is not None
@@ -1259,7 +1323,9 @@ async def test_hall_filament_width_sensor_diameter_and_raw_created(
         "Raw": 1234,
     }
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -1284,7 +1350,9 @@ async def test_hall_filament_width_sensor_diameter_and_raw_not_created_when_miss
     # Keys absent -> should not create entities
     get_data["status"]["hall_filament_width_sensor"] = {"is_active": True}
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
@@ -1301,7 +1369,9 @@ async def test_optional_sensors_ignores_empty_object_name(
     get_printer_objects_list["objects"].append("")
     get_printer_objects_list["objects"].append("   ")
 
-    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
     config_entry.add_to_hass(hass)
 
     # If the guard works, setup completes without raising.

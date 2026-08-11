@@ -1,15 +1,23 @@
 """Binary sensors platform for Moonraker integration."""
 
+from __future__ import annotations
+
+
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any, cast
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, METHODS
+from .coordinator import MoonrakerDataUpdateCoordinator
 from .entity import BaseMoonrakerEntity
 
 
@@ -17,25 +25,33 @@ from .entity import BaseMoonrakerEntity
 class MoonrakerBinarySensorDescription(BinarySensorEntityDescription):
     """Class describing Mookraker binary_sensor entities."""
 
-    is_on_fn: Callable | None = None
+    is_on_fn: Callable[[Any], bool] | None = None
     sensor_name: str | None = None
-    subscriptions: list | None = None
+    subscriptions: list[Any] | None = None
     icon: str | None = None
 
 
-async def async_setup_entry(hass, entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_devices: AddEntitiesCallback,
+) -> None:
     """Set up the binary_sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
 
     await async_setup_optional_binary_sensors(coordinator, entry, async_add_devices)
     await async_setup_update_binary_sensors(coordinator, entry, async_add_devices)
 
 
-async def async_setup_optional_binary_sensors(coordinator, entry, async_add_entities):
+async def async_setup_optional_binary_sensors(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set optional binary sensor platform."""
 
     sensors = []
-    object_list = await coordinator.async_fetch_data(METHODS.PRINTER_OBJECTS_LIST)
+    object_list = coordinator.objects_list or {"objects": []}
     for obj in object_list["objects"]:
         split_obj = obj.split()
 
@@ -75,13 +91,16 @@ async def async_setup_optional_binary_sensors(coordinator, entry, async_add_enti
             )
 
     coordinator.load_sensor_data(sensors)
-    await coordinator.async_refresh()
     async_add_entities(
         [MoonrakerBinarySensor(coordinator, entry, desc) for desc in sensors]
     )
 
 
-async def async_setup_update_binary_sensors(coordinator, entry, async_add_entities):
+async def async_setup_update_binary_sensors(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set Machine Update binary sensor."""
 
     desc = MoonrakerBinarySensorDescription(
@@ -93,14 +112,14 @@ async def async_setup_update_binary_sensors(coordinator, entry, async_add_entiti
         icon="mdi:update",
         device_class=BinarySensorDeviceClass.UPDATE,
         entity_registry_enabled_default=False,
+        entity_category=EntityCategory.DIAGNOSTIC,
     )
 
     coordinator.load_sensor_data([desc])
-    await coordinator.async_refresh()
     async_add_entities([MoonrakerBinarySensor(coordinator, entry, desc)])
 
 
-def update_available_fn(sensor):
+def update_available_fn(sensor: Any) -> bool:
     """Return if update is available."""
     machine_update = sensor.coordinator.data.get("machine_update")
     if not machine_update:
@@ -132,22 +151,30 @@ class MoonrakerBinarySensor(BaseMoonrakerEntity, BinarySensorEntity):
 
     def __init__(
         self,
-        coordinator,
-        entry,
-        description,
+        coordinator: MoonrakerDataUpdateCoordinator,
+        entry: ConfigEntry,
+        description: MoonrakerBinarySensorDescription,
     ) -> None:
         """Initialize the binary_sensor class."""
         super().__init__(coordinator, entry)
         self.entity_description = description
-        self.is_on_fn = description.is_on_fn
+        assert description.is_on_fn is not None
+        self.is_on_fn: Callable[[Any], bool] = description.is_on_fn
         self.sensor_name = description.sensor_name
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_name = description.name
+        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+        self._attr_name = cast(str | None, description.name)
         self._attr_has_entity_name = True
-        self._attr_native_value = description.is_on_fn(self)
+        self._attr_native_value = self._evaluate_is_on()
         self._attr_icon = description.icon
+
+    def _evaluate_is_on(self) -> bool:
+        """Evaluate the is_on function, tolerating incomplete printer data."""
+        try:
+            return bool(self.is_on_fn(self))
+        except (KeyError, TypeError, IndexError):
+            return False
 
     @property
     def is_on(self) -> bool:
         """Return state."""
-        return self.is_on_fn(self)
+        return self._evaluate_is_on()

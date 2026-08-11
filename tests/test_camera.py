@@ -248,7 +248,7 @@ async def test_thumbnail_no_thumbnail_after_update(
 
     async_fire_time_changed(
         hass,
-        dt.datetime.now(dt.timezone.utc) + dt.timedelta(minutes=5),
+        dt.datetime.now(dt.UTC) + dt.timedelta(minutes=5),
     )
     await hass.async_block_till_done()
 

@@ -1,124 +1,77 @@
 """Light platform for Moonraker integration."""
 
+from __future__ import annotations
+
+
 import logging
-from dataclasses import dataclass
+from typing import Any, cast
 
-from homeassistant.components.light import LightEntity, LightEntityDescription
-from homeassistant.components.light.const import ColorMode
-from homeassistant.core import callback
+from homeassistant.components.light import LightEntity
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, METHODS, OBJ
+from .const import METHODS
+from .coordinator import MoonrakerDataUpdateCoordinator
+from .devices import led
+from .devices.base import MoonrakerLightSensorDescription
 from .entity import BaseMoonrakerEntity
-from custom_components.moonraker.__init__ import MoonrakerDataUpdateCoordinator
 
 
-@dataclass(frozen=True)
-class MoonrakerLightSensorDescription(LightEntityDescription):
-    """Class describing Mookraker light entities."""
-
-    color_mode: ColorMode | None = None
-    sensor_name: str | None = None
-    icon: str | None = None
-    subscriptions: list | None = None
-
-
-async def async_setup_entry(hass, entry, async_add_devices):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_devices: AddEntitiesCallback,
+) -> None:
     """Set up the light platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
 
     await async_setup_light(coordinator, entry, async_add_devices)
 
 
-async def async_setup_light(coordinator, entry, async_add_entities):
+async def async_setup_light(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set optional light platform."""
 
-    object_list = await coordinator.async_fetch_data(METHODS.PRINTER_OBJECTS_LIST)
-
-    query_obj = {OBJ: {"configfile": ["settings"]}}
-    settings = await coordinator.async_fetch_data(
-        METHODS.PRINTER_OBJECTS_QUERY, query_obj, quiet=True
-    )
-
-    lights = []
-    for obj in object_list["objects"]:
-        if (
-            not obj.startswith("led ")
-            and not obj.startswith("neopixel ")
-            and not obj.startswith("dotstar ")
-            and not obj.startswith("pca9533 ")
-            and not obj.startswith("pca9632 ")
-        ):
-            continue
-
-        led_type = obj.split()[0]
-        color_mode = ColorMode.UNKNOWN
-        conf = settings["status"]["configfile"]["settings"][obj.lower()]
-
-        if led_type == "led":
-            num_led_pins = 0
-            for pin in ["red_pin", "green_pin", "blue_pin", "white_pin"]:
-                if pin in conf:
-                    num_led_pins += 1
-
-            if num_led_pins == 0:
-                continue
-            elif num_led_pins == 1:
-                color_mode = ColorMode.BRIGHTNESS
-            elif num_led_pins == 4 or "white_pin" in conf:
-                color_mode = ColorMode.RGBW
-            elif "red_pin" in conf and "green_pin" in conf and "blue_pin" in conf:
-                color_mode = ColorMode.RGB
-        elif led_type == "neopixel" or led_type == "pca9632":
-            if "color_order" in conf and "W" in conf["color_order"]:
-                color_mode = ColorMode.RGBW
-            else:
-                color_mode = ColorMode.RGB
-        elif led_type == "dotstar":
-            color_mode = ColorMode.RGB
-        elif led_type == "pca9533":
-            color_mode = ColorMode.RGBW
-
-        desc = MoonrakerLightSensorDescription(
-            key=obj,
-            sensor_name=obj,
-            name=obj.replace("_", " ").title(),
-            icon="mdi:led-variant-on",
-            subscriptions=[(obj, "color_data")],
-            color_mode=color_mode,
-        )
-        lights.append(desc)
+    lights = await led.build_led_lights(coordinator)
 
     coordinator.load_sensor_data(lights)
-    await coordinator.async_refresh()
     async_add_entities([MoonrakerLED(coordinator, entry, desc) for desc in lights])
 
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class MoonrakerLED(BaseMoonrakerEntity, LightEntity):
     """Moonraker LED class."""
 
     def __init__(
         self,
-        coordinator,
-        entry,
-        description,
+        coordinator: MoonrakerDataUpdateCoordinator,
+        entry: ConfigEntry,
+        description: MoonrakerLightSensorDescription,
     ) -> None:
         """Initialize the switch class."""
         super().__init__(coordinator, entry)
+        assert description.sensor_name is not None
         self.led_name = " ".join(description.sensor_name.split()[1:])
         self.entity_description = description
         self.sensor_name = description.sensor_name
-        self._attr_unique_id = f"{entry.entry_id}_{description.key}"
-        self._attr_name = description.name
+        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+        self._attr_name = cast(str | None, description.name)
         self._attr_has_entity_name = True
         self._attr_icon = description.icon
         self._attr_color_mode = description.color_mode
-        self._attr_supported_color_modes = {description.color_mode}
+        self._attr_supported_color_modes = (
+            {description.color_mode} if description.color_mode is not None else None
+        )
         self._set_attributes_from_coordinator()
         self.coordinator: MoonrakerDataUpdateCoordinator = coordinator
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light."""
         current_rgbw = self._attr_rgbw_color or (0, 0, 0, 0)
         curr_r, curr_g, curr_b, curr_w = current_rgbw
@@ -152,7 +105,7 @@ class MoonrakerLED(BaseMoonrakerEntity, LightEntity):
             r, g, b, w = 0, 0, 0, 0
         await self._set_rgbw(r, g, b, w)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light."""
         self._attr_is_on = False
         await self._set_rgbw(0, 0, 0, 0)
@@ -178,7 +131,9 @@ class MoonrakerLED(BaseMoonrakerEntity, LightEntity):
 
     def _set_attributes_from_coordinator(self) -> None:
         try:
-            color_data = self.coordinator.data["status"][self.sensor_name]["color_data"][0]
+            color_data = self.coordinator.data["status"][self.sensor_name][
+                "color_data"
+            ][0]
             r = int(color_data[0] * 255)
             g = int(color_data[1] * 255)
             b = int(color_data[2] * 255)

@@ -202,7 +202,7 @@ async def test_update_available_missing_machine_update(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data.coordinator
     coordinator.data.pop("machine_update", None)
 
     desc = MoonrakerBinarySensorDescription(
@@ -222,7 +222,7 @@ async def test_update_available_missing_remote_version(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    coordinator = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator = config_entry.runtime_data.coordinator
     coordinator.data["machine_update"] = {
         "version_info": {
             "system": {"package_count": 0},
@@ -284,3 +284,31 @@ async def test_hall_filament_width_sensor_active_off(
     state = hass.states.get("binary_sensor.mainsail_filament_width_sensor_active")
     assert state is not None
     assert state.state == "off"
+
+
+async def test_binary_sensor_tolerates_missing_data(hass, get_data):
+    """A binary sensor whose object is absent from the status is not created."""
+    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    from custom_components.moonraker.devices.base import (
+        MoonrakerBinarySensorDescription,
+    )
+    from custom_components.moonraker.binary_sensor import MoonrakerBinarySensor
+    from types import SimpleNamespace
+
+    entry = SimpleNamespace(unique_id="test")
+    desc = MoonrakerBinarySensorDescription(
+        key="missing",
+        name="Missing",
+        sensor_name="filament_switch_sensor ghost",
+        is_on_fn=lambda sensor: sensor.coordinator.data["status"][
+            "filament_switch_sensor ghost"
+        ]["filament_detected"],
+        subscriptions=[],
+    )
+    sensor = MoonrakerBinarySensor(config_entry.runtime_data.coordinator, entry, desc)
+    assert sensor.is_on is False
+    assert sensor._attr_native_value is False
