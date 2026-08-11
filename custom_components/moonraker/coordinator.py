@@ -276,7 +276,9 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             ),
         )
 
-        if objects_list is not None:
+        # Moonraker answers errors in-band, so an error payload would otherwise
+        # be cached and used as if it were the object list.
+        if isinstance(objects_list, dict) and "objects" in objects_list:
             self.objects_list = objects_list
             self._discovery_cache_time = now
 
