@@ -51,10 +51,13 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
+      # --no-resolve : la résolution transitive deps.dev est instable (rpc Internal) ;
+      # les arbres résolus sont déjà couverts par pip-audit, osv-scanner audite les pins.
       - uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
         with:
           scan-args: |
             --recursive
+            --no-resolve
             ./
 
   secret-scan:
