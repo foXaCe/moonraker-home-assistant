@@ -86,19 +86,41 @@
   "entity": {
     "sensor": {
       "printer_state": {
-        "name": "Estado de la impresora"
+        "name": "Estado de la impresora",
+        "state": {
+          "ready": "Lista",
+          "startup": "Iniciando",
+          "shutdown": "Apagada",
+          "error": "Error"
+        }
       },
       "printer_message": {
         "name": "Mensaje de la impresora"
       },
       "current_print_state": {
-        "name": "Estado de la impresión actual"
+        "name": "Estado de la impresión actual",
+        "state": {
+          "standby": "En espera",
+          "printing": "Imprimiendo",
+          "paused": "En pausa",
+          "complete": "Completada",
+          "cancelled": "Cancelada",
+          "error": "Error"
+        }
       },
       "current_print_message": {
         "name": "Mensaje de la impresión actual"
       },
       "idle_timeout_state": {
-        "name": "Estado del tiempo de inactividad"
+        "name": "Estado del tiempo de inactividad",
+        "state": {
+          "Printing": "Imprimiendo",
+          "Ready": "Lista",
+          "Idle": "Inactiva",
+          "Standby": "En espera",
+          "Paused": "En pausa",
+          "Complete": "Completada"
+        }
       },
       "current_display_message": {
         "name": "Mensaje mostrado actualmente"

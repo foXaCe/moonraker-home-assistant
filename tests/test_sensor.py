@@ -37,7 +37,7 @@ DEFAULT_VALUES = [
     ("mainsail_current_display_message", "Custom Message"),
     ("mainsail_printer_message", "Printer is ready"),
     ("mainsail_current_print_state", "printing"),
-    ("mainsail_current_print_message", ""),
+    ("mainsail_current_print_message", "unknown"),
     ("mainsail_print_projected_total_duration", "2.55485108570028"),
     ("mainsail_print_time_left", "0.328593266620827"),
     ("mainsail_print_duration", "133.575469144767"),
@@ -252,7 +252,7 @@ async def test_disabled_sensors(
 @pytest.mark.parametrize(
     "sensor_not_printing, value",
     [
-        ("mainsail_filename", ""),
+        ("mainsail_filename", "unknown"),
         ("mainsail_current_print_state", "standby"),
         ("mainsail_filament_used", "0.0"),
         ("mainsail_print_duration", "0.0"),

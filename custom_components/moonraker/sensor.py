@@ -67,9 +67,9 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
         key="print_message",
         translation_key="current_print_message",
         icon="mdi:message-text-outline",
-        value_fn=lambda sensor: sensor.coordinator.data["status"]["print_stats"][
-            "message"
-        ],
+        value_fn=lambda sensor: (
+            sensor.coordinator.data["status"]["print_stats"]["message"] or None
+        ),
         subscriptions=[("print_stats", "message")],
     ),
     MoonrakerSensorDescription(
@@ -88,10 +88,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
         translation_key="current_display_message",
         icon="mdi:monitor",
         value_fn=lambda sensor: (
-            sensor.coordinator.data["status"]["display_status"]["message"]
-            if sensor.coordinator.data["status"]["display_status"]["message"]
-            is not None
-            else ""
+            sensor.coordinator.data["status"]["display_status"]["message"] or None
         ),
         subscriptions=[("display_status", "message")],
     ),
@@ -678,10 +675,15 @@ class MoonrakerSensor(BaseMoonrakerEntity, SensorEntity):
         self.async_write_ha_state()
 
     def empty_result_when_not_printing(self, value: Any = "") -> Any:
-        """Return empty string when not printing."""
+        """Return a neutral value when no print is running.
+
+        Text sensors report None rather than an empty string: Home Assistant
+        shows an empty state as a blank cell, while None reads as "unknown",
+        which is what "there is no print to describe" actually means.
+        """
         if (
             self.coordinator.data["status"]["print_stats"]["state"]
             != PRINTSTATES.PRINTING.value
         ):
-            return "" if isinstance(value, str) else 0.0
+            return None if isinstance(value, str) else 0.0
         return value
