@@ -382,9 +382,7 @@ async def test_setup_entry_exception(hass):
         new_callable=AsyncMock,
         side_effect=Exception,
     ):
-        config_entry = MockConfigEntry(
-            domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="test"
-        )
+        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
         config_entry.add_to_hass(hass)
 
         with pytest.raises(ConfigEntryNotReady):
@@ -399,7 +397,6 @@ async def test_setup_entry_generic_exception_stays_warning_when_option_enabled(
         domain=DOMAIN,
         data=MOCK_CONFIG,
         options={CONF_OPTION_QUIET_UNREACHABLE: True},
-        unique_id="test-uuid",
         entry_id="setup_error_quiet",
     )
     config_entry.add_to_hass(hass)
@@ -424,9 +421,7 @@ async def test_setup_entry_generic_exception_stays_warning_when_option_enabled(
 
 async def test_setup_entry_unreachable_logs_warning_by_default(hass, caplog):
     """Unreachable printers keep warning-level visibility unless silenced."""
-    config_entry = MockConfigEntry(
-        domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="offline"
-    )
+    config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="offline")
     config_entry.add_to_hass(hass)
 
     with (
@@ -454,7 +449,6 @@ async def test_setup_entry_empty_port_uses_default_for_reachability_probe(hass):
     config_entry = MockConfigEntry(
         domain=DOMAIN,
         data=config,
-        unique_id="test-uuid",
         entry_id="empty_port",
     )
     config_entry.add_to_hass(hass)
@@ -478,7 +472,6 @@ async def test_setup_entry_unreachable_logs_debug_when_option_enabled(hass, capl
         domain=DOMAIN,
         data=MOCK_CONFIG,
         options={CONF_OPTION_QUIET_UNREACHABLE: True},
-        unique_id="test-uuid",
         entry_id="offline_quiet",
     )
     config_entry.add_to_hass(hass)
@@ -620,13 +613,41 @@ async def test_failed_first_refresh(hass):
         "moonraker_api.MoonrakerClient.call_method",
         side_effect=load_data,
     ):
-        config_entry = MockConfigEntry(
-            domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="test"
-        )
+        config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
         config_entry.add_to_hass(hass)
 
         with pytest.raises(ConfigEntryNotReady):
             assert await async_setup_entry(hass, config_entry)
+
+
+async def test_setup_entry_offline_with_unique_id_proceeds(hass):
+    """Set up with unavailable entities when the printer is unreachable.
+
+    A previously configured entry should not retry ConfigEntryNotReady forever.
+    """
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="offline_tol"
+    )
+    config_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "moonraker_api.MoonrakerClient.call_method",
+            new_callable=AsyncMock,
+            side_effect=Exception,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert config_entry.state.value == "loaded"
+    assert config_entry.runtime_data.coordinator is not None
+    assert not config_entry.runtime_data.coordinator.last_update_success
 
 
 async def test_set_custom_gcode_service(hass):
@@ -1359,3 +1380,56 @@ async def test_ensure_connected_quiet_unreachable_logs_debug(hass, caplog):
         and "connection to moonraker down" in record.message
         for record in caplog.records
     )
+
+
+async def test_setup_entry_generic_exception_with_unique_id_proceeds(hass, caplog):
+    """Set up with unavailable entities on a generic setup failure.
+
+    With an existing unique id the entry should not raise ConfigEntryNotReady.
+    """
+    import logging
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="gen_tol"
+    )
+    config_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "moonraker_api.MoonrakerClient.call_method",
+            new_callable=AsyncMock,
+            side_effect=Exception,
+        ),
+        caplog.at_level(logging.WARNING),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert config_entry.state.value == "loaded"
+    assert "unreachable; setting up with unavailable entities" in caplog.text
+
+
+async def test_async_fetch_data_offline_ok_returns_empty(hass):
+    """async_fetch_data with offline_ok returns {} instead of raising."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="off_ok"
+    )
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = config_entry.runtime_data.coordinator
+
+    with patch(
+        "custom_components.moonraker.coordinator._async_is_tcp_reachable",
+        new_callable=AsyncMock,
+        return_value=False,
+    ):
+        result = await coordinator.async_fetch_data(
+            METHODS.PRINTER_INFO, offline_ok=True
+        )
+    assert result == {}

@@ -99,6 +99,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         tls=tls,
     )
 
+    connected = False
+    api_device_name = entry.title or DOMAIN
     try:
         if not await _async_is_tcp_reachable(url, port):
             _log_unreachable(
@@ -107,31 +109,41 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 url,
                 port,
             )
-            raise ConfigEntryNotReady(f"Error connecting to {url}:{port}")
+            if entry.unique_id is None:
+                raise ConfigEntryNotReady(f"Error connecting to {url}:{port}")
+            _LOGGER.warning(
+                "Moonraker %s is offline; setting up with unavailable entities",
+                entry.title,
+            )
+        else:
+            async with async_timeout.timeout(TIMEOUT):
+                await client.start()
+                printer_info = await client.client.call_method(
+                    METHODS.PRINTER_INFO.value
+                )
+                server_info = await client.client.call_method(METHODS.SERVER_INFO.value)
+                connected = True
+                _LOGGER.debug("printer.info: %s", printer_info)
 
-        async with async_timeout.timeout(TIMEOUT):
-            await client.start()
-            printer_info = await client.client.call_method(METHODS.PRINTER_INFO.value)
-            server_info = await client.client.call_method(METHODS.SERVER_INFO.value)
-            _LOGGER.debug("printer.info: %s", printer_info)
+                printer_uuid = (
+                    server_info.get(SERVER_INFO_UUID) if server_info else None
+                ) or printer_info.get(HOSTNAME)
+                if not printer_uuid:
+                    raise ConfigEntryNotReady(
+                        "Moonraker did not report an instance UUID or hostname"
+                    )
 
-            printer_uuid = (
-                server_info.get(SERVER_INFO_UUID) if server_info else None
-            ) or printer_info.get(HOSTNAME)
-            if not printer_uuid:
-                raise ConfigEntryNotReady(
-                    "Moonraker did not report an instance UUID or hostname"
+                api_device_name = (
+                    printer_info[HOSTNAME]
+                    if printer_name in (None, "")
+                    else printer_name
                 )
 
-            api_device_name = (
-                printer_info[HOSTNAME] if printer_name in (None, "") else printer_name
-            )
+            if entry.unique_id is None:
+                hass.config_entries.async_update_entry(entry, unique_id=printer_uuid)
+                await _async_migrate_entity_unique_ids(hass, entry)
 
-        if entry.unique_id is None:
-            hass.config_entries.async_update_entry(entry, unique_id=printer_uuid)
-            await _async_migrate_entity_unique_ids(hass, entry)
-
-        hass.config_entries.async_update_entry(entry, title=api_device_name)
+            hass.config_entries.async_update_entry(entry, title=api_device_name)
 
     except ConfigEntryNotReady:
         await client.stop()
@@ -142,8 +154,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryAuthFailed("Invalid Moonraker API key") from exc
     except Exception as exc:
         _LOGGER.warning("Cannot configure moonraker instance")
-        await client.stop()
-        raise ConfigEntryNotReady(f"Error connecting to {url}:{port}") from exc
+        if entry.unique_id is None:
+            await client.stop()
+            raise ConfigEntryNotReady(f"Error connecting to {url}:{port}") from exc
+        _LOGGER.warning(
+            "Moonraker %s unreachable; setting up with unavailable entities",
+            entry.title,
+        )
 
     coordinator = MoonrakerDataUpdateCoordinator(
         hass,
@@ -154,7 +171,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await coordinator.async_refresh()
 
-    if not coordinator.last_update_success:
+    # Only fail setup on a failed first refresh when the printer answered at
+    # setup time. Offline printers keep their entities unavailable instead of
+    # leaving the config entry in an endless retry loop.
+    if not coordinator.last_update_success and connected:
         raise ConfigEntryNotReady
 
     entry.runtime_data = MoonrakerData(client=client, coordinator=coordinator)

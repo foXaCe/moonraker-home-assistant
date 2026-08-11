@@ -140,7 +140,7 @@ async def test_services(hass):
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
-    entity_id = "button.mainsail_stop_klipper"
+    entity_id = "button.mainsail_arreter_klipper"
     await _enable_button_entity(hass, config_entry, entity_id)
 
     with patch("moonraker_api.MoonrakerClient.call_method") as mock_api:
@@ -191,7 +191,7 @@ async def test_disabled_buttons(hass):
         "button.mainsail_macro_start_print",
         "button.mainsail_macro_end_print",
         "button.mainsail_macro_set_pause_next_layer",
-        "button.mainsail_stop_klipper",
+        "button.mainsail_arreter_klipper",
     ]
 
     for entity_id in disabled_buttons:
