@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 import async_timeout
 from homeassistant.config_entries import ConfigEntry
@@ -15,8 +16,9 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.entity_platform import async_get_platforms
 from homeassistant.helpers.typing import ConfigType
-from moonraker_api import ClientNotAuthenticatedError  # type: ignore[import-not-found]
+from moonraker_api import ClientNotAuthenticatedError
 
 from .api import MoonrakerApiClient
 from .const import (
@@ -100,6 +102,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     connected = False
+    printer_info: dict[str, Any] | None = None
     api_device_name = entry.title or DOMAIN
     try:
         if not await _async_is_tcp_reachable(url, port):
@@ -167,6 +170,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         client=client,
         config_entry=entry,
         api_device_name=api_device_name,
+        printer_info=printer_info,
     )
 
     await coordinator.async_refresh()
@@ -187,6 +191,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # refresh per platform (each platform refresh would re-query the full object
     # set and slow setup down on real printers).
     await coordinator.async_refresh()
+
+    if connected:
+        # Every platform has subscribed its objects by now, so this is the point
+        # where the whole set can be pushed by Moonraker instead of polled.
+        await coordinator.async_subscribe_objects()
+        _async_remove_stale_entities(hass, entry)
+
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     async def _stop_client(_event: Event) -> None:
@@ -200,6 +211,50 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_send_gcode_service(hass)
 
     return True
+
+
+@callback
+def _async_remove_stale_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop registry entries the printer no longer exposes.
+
+    A printer object that disappears (a webcam removed, Spoolman uninstalled, a
+    fan that stopped reporting RPM) leaves an entity behind that Home Assistant
+    keeps showing as unavailable forever. Anything still in the registry but not
+    among the entities this setup just created is one of those.
+
+    Only runs when the printer answered during setup: an unreachable printer
+    exposes nothing and must never be a reason to delete an entity. Disabled
+    entities are never instantiated, so they are skipped as well.
+    """
+    live_unique_ids = {
+        entity.unique_id
+        for platform in async_get_platforms(hass, DOMAIN)
+        if platform.config_entry is not None
+        and platform.config_entry.entry_id == entry.entry_id
+        for entity in platform.entities.values()
+        if entity.unique_id is not None
+    }
+
+    if not live_unique_ids:
+        # Nothing was created at all; treat it as a failed setup rather than as
+        # a printer that exposes nothing.
+        return
+
+    entity_registry = er.async_get(hass)
+
+    for registry_entry in er.async_entries_for_config_entry(
+        entity_registry, entry.entry_id
+    ):
+        if registry_entry.disabled_by is not None:
+            continue
+        if registry_entry.unique_id in live_unique_ids:
+            continue
+
+        _LOGGER.info(
+            "Removing %s: the printer no longer exposes it",
+            registry_entry.entity_id,
+        )
+        entity_registry.async_remove(registry_entry.entity_id)
 
 
 @callback
@@ -318,6 +373,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
     )
     if unloaded:
+        data.client.set_notification_callback(None)
         await data.client.stop()
         del entry.runtime_data
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+import asyncio
 import logging
 from typing import Any, cast
 
@@ -347,12 +348,16 @@ async def async_setup_entry(
     """Set sensor platform."""
     coordinator = entry.runtime_data.coordinator
 
-    await async_setup_basic_sensor(coordinator, entry, async_add_entities)
-    await async_setup_optional_sensors(coordinator, entry, async_add_entities)
-    await async_setup_history_sensors(coordinator, entry, async_add_entities)
-    await async_setup_machine_update_sensors(coordinator, entry, async_add_entities)
-    await async_setup_queue_sensors(coordinator, entry, async_add_entities)
-    await async_setup_spoolman_sensors(coordinator, entry, async_add_entities)
+    # These groups query independent endpoints, so they are discovered
+    # concurrently: setup then costs one round-trip instead of six in a row.
+    await asyncio.gather(
+        async_setup_basic_sensor(coordinator, entry, async_add_entities),
+        async_setup_optional_sensors(coordinator, entry, async_add_entities),
+        async_setup_history_sensors(coordinator, entry, async_add_entities),
+        async_setup_machine_update_sensors(coordinator, entry, async_add_entities),
+        async_setup_queue_sensors(coordinator, entry, async_add_entities),
+        async_setup_spoolman_sensors(coordinator, entry, async_add_entities),
+    )
 
 
 async def _machine_system_info_updater(
@@ -368,7 +373,14 @@ async def async_setup_basic_sensor(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set basic sensor platform."""
-    coordinator.add_data_updater(_machine_system_info_updater, ttl=SLOW_UPDATER_TTL)
+    system_info = await coordinator.async_fetch_shared(
+        METHODS.MACHINE_SYSTEM_INFO, offline_ok=True
+    )
+    coordinator.add_data_updater(
+        _machine_system_info_updater,
+        ttl=SLOW_UPDATER_TTL,
+        seed={"system_info": system_info.get("system_info", {})},
+    )
     coordinator.load_sensor_data(list(SENSORS))
     async_add_entities([MoonrakerSensor(coordinator, entry, desc) for desc in SENSORS])
 
@@ -380,10 +392,14 @@ async def async_setup_optional_sensors(
 ) -> None:
     """Set optional sensor platform."""
 
-    sensors = []
-    sensors += await thermal.build_temperature_sensors(coordinator)
-    sensors += await fan.build_fan_sensors(coordinator)
-    sensors += await mcu.build_mcu_sensors(coordinator)
+    # Independent discovery queries, run together but kept in a fixed order so
+    # generated entity names stay stable.
+    thermal_sensors, fan_sensors, mcu_sensors = await asyncio.gather(
+        thermal.build_temperature_sensors(coordinator),
+        fan.build_fan_sensors(coordinator),
+        mcu.build_mcu_sensors(coordinator),
+    )
+    sensors = [*thermal_sensors, *fan_sensors, *mcu_sensors]
 
     coordinator.load_sensor_data(sensors)
     async_add_entities([MoonrakerSensor(coordinator, entry, desc) for desc in sensors])
@@ -409,7 +425,9 @@ async def async_setup_history_sensors(
     if history.get("error"):
         return
 
-    coordinator.add_data_updater(_history_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _history_updater, ttl=SLOW_UPDATER_TTL, seed={"history": history}
+    )
 
     sensors = [
         MoonrakerSensorDescription(
@@ -481,7 +499,9 @@ async def async_setup_queue_sensors(
     if queue.get("queue_state") is None or queue.get("queued_jobs") is None:
         return
 
-    coordinator.add_data_updater(_queue_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _queue_updater, ttl=SLOW_UPDATER_TTL, seed={"queue": queue}
+    )
 
     sensors = [
         MoonrakerSensorDescription(
@@ -527,7 +547,9 @@ async def async_setup_spoolman_sensors(
     if spoolman.get("error"):
         return
 
-    coordinator.add_data_updater(_spoolman_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _spoolman_updater, ttl=SLOW_UPDATER_TTL, seed={"spoolman": spoolman}
+    )
 
     sensors = [
         MoonrakerSensorDescription(
@@ -559,12 +581,16 @@ async def async_setup_machine_update_sensors(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Test update available."""
-    machine_status = await coordinator.async_fetch_data(
+    machine_status = await coordinator.async_fetch_shared(
         METHODS.MACHINE_UPDATE_STATUS, offline_ok=True
     )
     if machine_status.get("error") or not machine_status.get("version_info"):
         return
-    coordinator.add_data_updater(_machine_update_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _machine_update_updater,
+        ttl=SLOW_UPDATER_TTL,
+        seed={"machine_update": machine_status},
+    )
     sensors = []
 
     for version_info in machine_status["version_info"]:

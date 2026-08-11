@@ -16,22 +16,22 @@ Klipper printer
 
 ## Key modules
 
-| Module                                           | Role                                                                   |
-| ------------------------------------------------ | ---------------------------------------------------------------------- |
-| `__init__.py`                                    | Config entry setup/unload, `async_migrate_entry`, `send_gcode` service |
-| `coordinator.py`                                 | `DataUpdateCoordinator` (typed), dynamic polling, data fetch/send      |
-| `config_flow.py`                                 | Config flow + options flow: selectors, reauth, reconfigure, zeroconf   |
-| `repairs.py`                                     | Repair flow + issue for invalid API key                                |
-| `diagnostics.py`                                 | `async_get_config_entry_diagnostics` (API key redacted)                |
-| `const.py`                                       | Domain constants, platforms, API methods, config keys (`Final`)        |
-| `helpers.py`                                     | Pure functions (print progress/ETA, gcode path, ports)                 |
-| `api/`                                           | `client.py` (wrapper + retry/backoff), `exceptions.py` (typed errors)  |
-| `devices/`                                       | Per-device description builders (thermal, fan, mcu, pin, led, macro)   |
-| `entity.py`                                      | `BaseMoonrakerEntity` (DeviceInfo, coordinator wiring)                 |
-| `sensor.py`, `number.py`, …                      | Entity platforms: thin `async_setup_entry` calling `devices/` builders |
-| `camera.py`                                      | Webcam stream (MjpegCamera) + printed-object thumbnail                 |
-| `update.py`                                      | `UpdateEntity` for system/firmware components                          |
-| `services.yaml`, `strings.json`, `translations/` | Service descriptions and UI translations (en, es, fr)                  |
+| Module                                           | Role                                                                        |
+| ------------------------------------------------ | --------------------------------------------------------------------------- |
+| `__init__.py`                                    | Config entry setup/unload, `async_migrate_entry`, `send_gcode` service      |
+| `coordinator.py`                                 | `DataUpdateCoordinator` (typed), dynamic polling, data fetch/send           |
+| `config_flow.py`                                 | Config flow + options flow: selectors, reauth, reconfigure, zeroconf        |
+| `repairs.py`                                     | Repair flow + issue for invalid API key                                     |
+| `diagnostics.py`                                 | `async_get_config_entry_diagnostics` (API key redacted)                     |
+| `const.py`                                       | Domain constants, platforms, API methods, config keys (`Final`)             |
+| `helpers.py`                                     | Pure functions (print progress/ETA, gcode path, ports)                      |
+| `api/`                                           | `client.py` (wrapper + retry/backoff + push notifications), `exceptions.py` |
+| `devices/`                                       | Per-device description builders (thermal, fan, mcu, pin, led, macro)        |
+| `entity.py`                                      | `BaseMoonrakerEntity` (DeviceInfo, coordinator wiring)                      |
+| `sensor.py`, `number.py`, …                      | Entity platforms: thin `async_setup_entry` calling `devices/` builders      |
+| `camera.py`                                      | Webcam stream (MjpegCamera) + printed-object thumbnail                      |
+| `update.py`                                      | `UpdateEntity` for system/firmware components                               |
+| `services.yaml`, `strings.json`, `translations/` | Service descriptions and UI translations (en, es, fr)                       |
 
 ## Runtime data
 
@@ -69,15 +69,56 @@ migration (`async_migrate_entry`, version 1 → 2) converts legacy
 2. Create `<platform>.py` with only `async_setup_entry(hass, entry, async_add_entities)` (thin) delegating to `devices/` builders.
 3. Add entity classes and translations, then tests.
 
-## Polling behaviour
+## Update behaviour
 
-The coordinator polls every `options.polling_rate` seconds (default 30).
-While printing (`print_stats.state == "printing"`) it switches to a 2 s
-interval and back to the configured interval when printing ends.
+Once every platform has registered its printer objects, the coordinator calls
+`printer.objects.subscribe`: Moonraker then pushes each change over the
+websocket that is already open (`notify_status_update`), and the coordinator
+merges the partial payload into its data. A printer that refuses the
+subscription simply stays on polling.
+
+Polling remains enabled as a safety net for anything a dropped notification
+would lose. Once subscribed it runs every `SAFETY_NET_INTERVAL` (5 min, or the
+configured `options.polling_rate` when that is longer) and no longer switches to
+the 2 s printing cadence — Moonraker already pushes those changes. Events the
+subscription does not carry (Klippy state, power devices, history, job queue,
+update status) arrive as their own notifications and trigger a refresh.
+
+Without a subscription the original behaviour applies: every
+`options.polling_rate` seconds (default 30), 2 s while printing.
+
+Each refresh runs the registered updaters in order. `_printer_objects_updater`
+stores its status payload on the coordinator so `_gcode_file_detail_updater`
+reads it instead of re-querying the whole object set. Slow endpoints (history,
+job queue, spoolman, update status, power devices, system info) are registered
+with a 60 s TTL, and gcode metadata is cached per filename until a new print
+starts — the file itself cannot change while it prints.
+
+## Setup cost
+
+Setup latency on a real printer is dominated by serialized JSON-RPC
+round-trips, so the call count is what the integration optimises for:
+
+- platforms pass what they already fetched to `add_data_updater(..., seed=...)`,
+  which fills the coordinator data and starts the TTL window instead of letting
+  the next refresh repeat the same call;
+- endpoints several platforms need (`machine.update.status`,
+  `machine.system_info`) go through `coordinator.async_fetch_shared()`, which
+  shares the pending task so concurrent platform setups issue one call;
+- the discovery caches (`objects_list`, `configfile_settings`) are read by the
+  `devices/` builders rather than being re-queried per platform;
+- independent discovery calls run concurrently (`sensor.py` setup groups, the
+  thermal/fan/mcu builders, the two discovery-cache queries);
+- a single refresh runs after all platforms subscribed their objects — no
+  platform triggers its own, and the first refresh skips the printer object
+  query while no object is subscribed yet.
+
+`tests/test_boot_perf.py` enforces the budget (`MAX_SETUP_CALLS`); run it with
+`-s` to print the full per-method profile.
 
 ## Quality gates
 
-- `scripts/test_strict` — 293 tests, 100 % statement coverage.
+- `scripts/test_strict` — 342 tests, 100 % statement coverage.
 - `ruff check` / `ruff format` — clean.
 - `mypy --strict custom_components/moonraker/` — clean.
 - `hassfest` — clean (config-entry-only `CONFIG_SCHEMA`).
