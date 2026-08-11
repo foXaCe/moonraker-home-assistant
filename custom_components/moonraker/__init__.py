@@ -394,6 +394,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     if unloaded:
         data.client.set_notification_callback(None)
+        # Cancel the scheduled refresh and the request debouncer, otherwise a
+        # reloaded entry leaves the previous coordinator ticking behind it.
+        await coordinator.async_shutdown()
         await data.client.stop()
         del entry.runtime_data
 
