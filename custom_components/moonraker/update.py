@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
-from homeassistant.components.update import UpdateEntity
+from homeassistant.components.update import UpdateEntity, UpdateEntityFeature
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import METHODS
@@ -25,7 +27,7 @@ async def async_setup_entry(
     """Set up the update platform from machine.update.status."""
     coordinator = entry.runtime_data.coordinator
 
-    machine_status = await coordinator.async_fetch_data(
+    machine_status = await coordinator.async_fetch_shared(
         METHODS.MACHINE_UPDATE_STATUS, offline_ok=True
     )
     if machine_status.get("error"):
@@ -66,12 +68,31 @@ async def async_setup_entry(
         async_add_entities(entities)
 
 
+# Moonraker 0.10.0 replaced the per-component update methods with a single
+# machine.update.upgrade. Older instances only know the deprecated ones, so they
+# are kept as a fallback keyed by component name.
+LEGACY_UPGRADE_METHODS = {
+    "klipper": METHODS.MACHINE_UPDATE_KLIPPER,
+    "moonraker": METHODS.MACHINE_UPDATE_MOONRAKER,
+    "system": METHODS.MACHINE_UPDATE_SYSTEM,
+}
+
+
+def _is_unsupported_method(result: Any) -> bool:
+    """Return whether Moonraker answered that the method does not exist."""
+    if not isinstance(result, dict):
+        return False
+    error = result.get("error")
+    return isinstance(error, dict) and error.get("code") == -32601
+
+
 class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
     """Representation of a Moonraker managed component update."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_entity_registry_enabled_default = False
     _attr_icon = "mdi:update"
+    _attr_supported_features = UpdateEntityFeature.INSTALL
 
     def __init__(
         self,
@@ -94,6 +115,30 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
         self._attr_title = title
         self._attr_installed_version = installed_version
         self._attr_latest_version = latest_version
+
+    async def async_install(
+        self, version: str | None, backup: bool, **kwargs: Any
+    ) -> None:
+        """Ask Moonraker to upgrade this component."""
+        result = await self.coordinator.async_fetch_data(
+            METHODS.MACHINE_UPDATE_UPGRADE, {"name": self._component}
+        )
+
+        if _is_unsupported_method(result):
+            legacy = LEGACY_UPGRADE_METHODS.get(self._component)
+            if legacy is not None:
+                result = await self.coordinator.async_fetch_data(legacy)
+            else:
+                result = await self.coordinator.async_fetch_data(
+                    METHODS.MACHINE_UPDATE_CLIENT, {"name": self._component}
+                )
+
+        if _is_unsupported_method(result):
+            raise HomeAssistantError(
+                f"This Moonraker instance cannot update {self._component}"
+            )
+
+        await self.coordinator.async_request_refresh()
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
