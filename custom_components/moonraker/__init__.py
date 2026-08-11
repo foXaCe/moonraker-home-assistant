@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timedelta
+from functools import partial
 from typing import Any
 
 import async_timeout
@@ -17,6 +19,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.entity_platform import async_get_platforms
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 from moonraker_api import ClientNotAuthenticatedError
 
@@ -41,6 +44,10 @@ from .coordinator import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Entities are added asynchronously; the registry is only worth comparing to
+# them once everything has settled.
+STALE_ENTITY_SCAN_DELAY = timedelta(minutes=1)
 
 
 @dataclass
@@ -196,7 +203,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Every platform has subscribed its objects by now, so this is the point
         # where the whole set can be pushed by Moonraker instead of polled.
         await coordinator.async_subscribe_objects()
-        _async_remove_stale_entities(hass, entry)
+
+        # async_add_entities schedules the entities rather than adding them
+        # synchronously, so the registry is only comparable to what this setup
+        # created once the loop has drained. Scanning too early would delete
+        # perfectly live entities.
+        entry.async_on_unload(
+            async_call_later(
+                hass,
+                STALE_ENTITY_SCAN_DELAY,
+                partial(_async_remove_stale_entities, hass, entry),
+            )
+        )
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
@@ -214,7 +232,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 @callback
-def _async_remove_stale_entities(hass: HomeAssistant, entry: ConfigEntry) -> None:
+def _async_remove_stale_entities(
+    hass: HomeAssistant, entry: ConfigEntry, _now: datetime | None = None
+) -> None:
     """Drop registry entries the printer no longer exposes.
 
     A printer object that disappears (a webcam removed, Spoolman uninstalled, a

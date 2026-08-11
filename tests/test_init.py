@@ -15,9 +15,15 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.moonraker import (
+    STALE_ENTITY_SCAN_DELAY,
+    _async_remove_stale_entities,
     _async_migrate_entity_unique_ids,
     async_reload_entry,
     async_setup_entry,
@@ -1462,6 +1468,12 @@ async def test_stale_entities_are_removed(hass, get_default_api_response):
         assert await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
 
+        # The scan is deferred until the entities have actually been added.
+        assert entity_registry.async_get(stale.entity_id) is not None
+
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
+
     assert entity_registry.async_get(stale.entity_id) is None
 
 
@@ -1493,6 +1505,8 @@ async def test_stale_entities_are_kept_when_printer_is_offline(
     ):
         assert await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
 
     assert entity_registry.async_get(stale.entity_id) is not None
 
@@ -1517,5 +1531,29 @@ async def test_disabled_entities_are_kept(hass, get_default_api_response):
     with patch("custom_components.moonraker.MoonrakerApiClient.start"):
         assert await hass.config_entries.async_setup(config_entry.entry_id)
         await hass.async_block_till_done()
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
 
     assert entity_registry.async_get(disabled.entity_id) is not None
+
+
+async def test_stale_scan_does_nothing_without_live_entities(hass):
+    """A scan finding no live entity keeps the registry untouched."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="empty", unique_id="empty-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    orphan = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "empty-uuid_never_created",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_never_created",
+    )
+
+    # The entry was never set up, so no platform holds any entity.
+    _async_remove_stale_entities(hass, config_entry)
+
+    assert entity_registry.async_get(orphan.entity_id) is not None
