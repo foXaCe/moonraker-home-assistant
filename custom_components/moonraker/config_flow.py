@@ -23,7 +23,7 @@ from homeassistant.helpers.selector import (
     TextSelector,
 )
 from homeassistant.util import network, slugify
-from moonraker_api import ClientNotAuthenticatedError  # type: ignore[import-not-found]
+from moonraker_api import ClientNotAuthenticatedError
 
 from .api import MoonrakerApiClient
 from .const import (
