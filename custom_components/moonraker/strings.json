@@ -114,12 +114,12 @@
       "idle_timeout_state": {
         "name": "Idle Timeout State",
         "state": {
-          "Printing": "Printing",
-          "Ready": "Ready",
-          "Idle": "Idle",
-          "Standby": "Standby",
-          "Paused": "Paused",
-          "Complete": "Complete"
+          "printing": "Printing",
+          "ready": "Ready",
+          "idle": "Idle",
+          "standby": "Standby",
+          "paused": "Paused",
+          "complete": "Complete"
         }
       },
       "current_display_message": {

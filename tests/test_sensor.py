@@ -32,7 +32,7 @@ DEFAULT_VALUES = [
     ("mainsail_progress", "90.7810423766328"),
     ("mainsail_print_speed", "123.46"),
     ("mainsail_printer_state", "ready"),
-    ("mainsail_idle_timeout_state", "Ready"),
+    ("mainsail_idle_timeout_state", "ready"),
     ("mainsail_filename", "CE3E3V2_picture_frame_holder.gcode"),
     ("mainsail_current_display_message", "Custom Message"),
     ("mainsail_printer_message", "Printer is ready"),
@@ -164,7 +164,7 @@ async def test_idle_timeout_state_normalized(hass, get_data):
     await hass.async_block_till_done()
 
     state = hass.states.get("sensor.mainsail_idle_timeout_state")
-    assert state.state == "Standby"
+    assert state.state == "standby"
 
 
 async def test_idle_timeout_state_complete(hass, get_data):
@@ -179,8 +179,8 @@ async def test_idle_timeout_state_complete(hass, get_data):
     await hass.async_block_till_done()
 
     state = hass.states.get("sensor.mainsail_idle_timeout_state")
-    assert state.state == "Complete"
-    assert "Complete" in state.attributes["options"]
+    assert state.state == "complete"
+    assert "complete" in state.attributes["options"]
 
 
 def test_idle_timeout_state_handles_missing():
@@ -211,7 +211,7 @@ def test_idle_timeout_state_blank_returns_none():
 @pytest.mark.parametrize(
     "sensor, value",
     [
-        ("mainsail_machine_update_system", "8 packages can be upgraded"),
+        ("mainsail_machine_update_system", "8 paquet(s) à mettre à jour"),
         ("mainsail_version_crownest", "v4.0.4-6 > v4.1.1-1"),
         ("mainsail_version_mainsail", "v2.8.0"),
     ],

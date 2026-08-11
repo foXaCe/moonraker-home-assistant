@@ -114,12 +114,12 @@
       "idle_timeout_state": {
         "name": "Estado del tiempo de inactividad",
         "state": {
-          "Printing": "Imprimiendo",
-          "Ready": "Lista",
-          "Idle": "Inactiva",
-          "Standby": "En espera",
-          "Paused": "En pausa",
-          "Complete": "Completada"
+          "printing": "Imprimiendo",
+          "ready": "Lista",
+          "idle": "Inactiva",
+          "standby": "En espera",
+          "paused": "En pausa",
+          "complete": "Completada"
         }
       },
       "current_display_message": {

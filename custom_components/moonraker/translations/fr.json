@@ -114,12 +114,12 @@
       "idle_timeout_state": {
         "name": "État du délai d'inactivité",
         "state": {
-          "Printing": "Impression en cours",
-          "Ready": "Prête",
-          "Idle": "Inactive",
-          "Standby": "En attente",
-          "Paused": "En pause",
-          "Complete": "Terminée"
+          "printing": "Impression en cours",
+          "ready": "Prête",
+          "idle": "Inactive",
+          "standby": "En attente",
+          "paused": "En pause",
+          "complete": "Terminée"
         }
       },
       "current_display_message": {

@@ -509,8 +509,7 @@ async def async_setup_queue_sensors(
             # anything Moonraker adds later reads as unknown instead.
             value_fn=lambda sensor: (
                 sensor.coordinator.data["queue"]["queue_state"]
-                if sensor.coordinator.data["queue"]["queue_state"]
-                in QUEUESTATES.list()
+                if sensor.coordinator.data["queue"]["queue_state"] in QUEUESTATES.list()
                 else None
             ),
             device_class=SensorDeviceClass.ENUM,
@@ -606,7 +605,7 @@ async def async_setup_machine_update_sensors(
                     key="machine_update_system",
                     translation_key="machine_update_system",
                     value_fn=lambda sensor: (
-                        f"{sensor.coordinator.data['machine_update']['version_info']['system']['package_count']} packages can be upgraded"
+                        f"{sensor.coordinator.data['machine_update']['version_info']['system']['package_count']} paquet(s) à mettre à jour"
                     ),
                     subscriptions=[],
                     icon="mdi:update",

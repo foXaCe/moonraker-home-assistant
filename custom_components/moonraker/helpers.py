@@ -16,17 +16,16 @@ from .const import DEFAULT_PORT, PRINTSTATES
 
 _GCODE_ROOT = "gcodes"
 
+# Enum option keys must be lowercase for Home Assistant to translate them.
 IDLE_TIMEOUT_STATE_OPTIONS = (
-    "Printing",
-    "Ready",
-    "Idle",
-    "Standby",
-    "Paused",
-    "Complete",
+    "printing",
+    "ready",
+    "idle",
+    "standby",
+    "paused",
+    "complete",
 )
-IDLE_TIMEOUT_STATE_MAP = {
-    option.casefold(): option for option in IDLE_TIMEOUT_STATE_OPTIONS
-}
+IDLE_TIMEOUT_STATE_MAP = {option: option for option in IDLE_TIMEOUT_STATE_OPTIONS}
 
 
 def normalize_moonraker_port(port: int | str | None) -> int:
@@ -120,7 +119,7 @@ def build_thumbnail_path(
 
 
 def format_idle_timeout_state(data: dict[str, Any]) -> str | None:
-    """Return the idle timeout state in title case when available."""
+    """Return the idle timeout state as a translatable option key."""
     state = data["status"].get("idle_timeout", {}).get("state")
     if state is None:
         return None

@@ -45,7 +45,7 @@ async def async_setup_entry(
                     title="System",
                     installed_version="installed",
                     latest_version=(
-                        f"{info.get('package_count', 0)} package update(s) available"
+                        f"{info.get('package_count', 0)} paquet(s) à mettre à jour"
                     ),
                 )
             )
@@ -110,7 +110,7 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
         if component == "system":
             self._attr_translation_key = "system_update"
         else:
-            self._attr_name = f"{component.title()} update"
+            self._attr_name = f"Mise à jour {component.title()}"
         self._attr_has_entity_name = True
         self._attr_title = title
         self._attr_installed_version = installed_version
@@ -150,7 +150,7 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
 
         if self._component == "system":
             self._attr_latest_version = (
-                f"{info.get('package_count', 0)} package update(s) available"
+                f"{info.get('package_count', 0)} paquet(s) à mettre à jour"
             )
         else:
             version = info.get("version")
