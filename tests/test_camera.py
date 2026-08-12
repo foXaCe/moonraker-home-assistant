@@ -12,6 +12,8 @@ from pytest_homeassistant_custom_component.common import (
     async_fire_time_changed,
 )
 
+from homeassistant.const import Platform
+
 from custom_components.moonraker.const import DOMAIN, PRINTSTATES
 
 from .const import MOCK_CONFIG, MOCK_OPTIONS
@@ -444,3 +446,25 @@ async def test_option_config_thumbnail_port(hass, aioclient_mock, get_data):
 
     await camera.async_get_image(hass, "camera.mainsail_thumbnail")
     await camera.async_get_image(hass, "camera.mainsail_thumbnail")
+
+
+async def test_camera_entity_ids_do_not_depend_on_other_platforms(
+    hass, get_default_api_response
+):
+    """The camera platform names the device itself.
+
+    Setting up camera on its own reproduces the case where no other platform has
+    created the device yet: without a name in DeviceInfo the entity ids would
+    lose their device prefix, which used to depend on setup order.
+    """
+    with patch("custom_components.moonraker.PLATFORMS", [Platform.CAMERA]):
+        config_entry = MockConfigEntry(
+            domain=DOMAIN, data=MOCK_CONFIG, entry_id="camera_only", unique_id="cam"
+        )
+        config_entry.add_to_hass(hass)
+        await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    assert entity_registry.async_get("camera.mainsail_thumbnail") is not None
+    assert entity_registry.async_get("camera.mainsail_webcam") is not None

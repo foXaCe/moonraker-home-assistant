@@ -28,7 +28,9 @@ from .coordinator import MoonrakerDataUpdateCoordinator
 _LOGGER = logging.getLogger(__name__)
 DEFAULT_PORT = 80
 
-hardcoded_camera = {
+# Default webcam description. Treated as read-only: every setup copies it before
+# applying entry options, so one config entry cannot leak its URLs into another.
+DEFAULT_CAMERA = {
     "name": "webcam",
     "location": "printer",
     "service": "mjpegstreamer-adaptive",
@@ -57,14 +59,15 @@ async def async_setup_entry(
             config_entry.options.get(CONF_OPTION_CAMERA_STREAM) is not None
             and config_entry.options.get(CONF_OPTION_CAMERA_STREAM) != ""
         ):
-            hardcoded_camera["stream_url"] = config_entry.options.get(
+            configured_camera = dict(DEFAULT_CAMERA)
+            configured_camera["stream_url"] = config_entry.options.get(
                 CONF_OPTION_CAMERA_STREAM
             )
-            hardcoded_camera["snapshot_url"] = config_entry.options.get(
+            configured_camera["snapshot_url"] = config_entry.options.get(
                 CONF_OPTION_CAMERA_SNAPSHOT
             )
             async_add_entities(
-                [MoonrakerCamera(config_entry, coordinator, hardcoded_camera, 100)]
+                [MoonrakerCamera(config_entry, coordinator, configured_camera, 100)]
             )
             camera_cnt += 1
         else:
@@ -82,7 +85,7 @@ async def async_setup_entry(
     if camera_cnt == 0:
         _LOGGER.info("No Camera in the list, trying hardcoded")
         async_add_entities(
-            [MoonrakerCamera(config_entry, coordinator, hardcoded_camera, 0)]
+            [MoonrakerCamera(config_entry, coordinator, dict(DEFAULT_CAMERA), 0)]
         )
 
     async_add_entities(
@@ -110,8 +113,12 @@ class MoonrakerCamera(MjpegCamera):
     ) -> None:
         """Initialize as a subclass of MjpegCamera."""
 
+        # Naming the device here rather than relying on whichever platform
+        # happens to create it first: without a name, this entity's id depends
+        # on setup order.
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, config_entry.entry_id)}
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=coordinator.api_device_name,
         )
         if (
             config_entry.options.get(CONF_OPTION_CAMERA_PORT) is not None
@@ -153,7 +160,8 @@ class PreviewCamera(Camera):
 
         super().__init__()
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, config_entry.entry_id)}
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=coordinator.api_device_name,
         )
         self.url = config_entry.data.get(CONF_URL)
         self.coordinator = coordinator

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 
+import asyncio
 import logging
 from typing import Any, cast
 
@@ -22,7 +23,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import helpers
-from .const import METHODS, PRINTERSTATES, PRINTSTATES
+from .const import METHODS, PRINTERSTATES, PRINTSTATES, QUEUESTATES
 from .coordinator import SLOW_UPDATER_TTL
 from .coordinator import MoonrakerDataUpdateCoordinator
 from .devices import fan, mcu, thermal
@@ -66,9 +67,9 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
         key="print_message",
         translation_key="current_print_message",
         icon="mdi:message-text-outline",
-        value_fn=lambda sensor: sensor.coordinator.data["status"]["print_stats"][
-            "message"
-        ],
+        value_fn=lambda sensor: (
+            sensor.coordinator.data["status"]["print_stats"]["message"] or None
+        ),
         subscriptions=[("print_stats", "message")],
     ),
     MoonrakerSensorDescription(
@@ -87,10 +88,7 @@ SENSORS: tuple[MoonrakerSensorDescription, ...] = (
         translation_key="current_display_message",
         icon="mdi:monitor",
         value_fn=lambda sensor: (
-            sensor.coordinator.data["status"]["display_status"]["message"]
-            if sensor.coordinator.data["status"]["display_status"]["message"]
-            is not None
-            else ""
+            sensor.coordinator.data["status"]["display_status"]["message"] or None
         ),
         subscriptions=[("display_status", "message")],
     ),
@@ -347,12 +345,16 @@ async def async_setup_entry(
     """Set sensor platform."""
     coordinator = entry.runtime_data.coordinator
 
-    await async_setup_basic_sensor(coordinator, entry, async_add_entities)
-    await async_setup_optional_sensors(coordinator, entry, async_add_entities)
-    await async_setup_history_sensors(coordinator, entry, async_add_entities)
-    await async_setup_machine_update_sensors(coordinator, entry, async_add_entities)
-    await async_setup_queue_sensors(coordinator, entry, async_add_entities)
-    await async_setup_spoolman_sensors(coordinator, entry, async_add_entities)
+    # These groups query independent endpoints, so they are discovered
+    # concurrently: setup then costs one round-trip instead of six in a row.
+    await asyncio.gather(
+        async_setup_basic_sensor(coordinator, entry, async_add_entities),
+        async_setup_optional_sensors(coordinator, entry, async_add_entities),
+        async_setup_history_sensors(coordinator, entry, async_add_entities),
+        async_setup_machine_update_sensors(coordinator, entry, async_add_entities),
+        async_setup_queue_sensors(coordinator, entry, async_add_entities),
+        async_setup_spoolman_sensors(coordinator, entry, async_add_entities),
+    )
 
 
 async def _machine_system_info_updater(
@@ -368,7 +370,14 @@ async def async_setup_basic_sensor(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set basic sensor platform."""
-    coordinator.add_data_updater(_machine_system_info_updater, ttl=SLOW_UPDATER_TTL)
+    system_info = await coordinator.async_fetch_shared(
+        METHODS.MACHINE_SYSTEM_INFO, offline_ok=True
+    )
+    coordinator.add_data_updater(
+        _machine_system_info_updater,
+        ttl=SLOW_UPDATER_TTL,
+        seed={"system_info": system_info.get("system_info", {})},
+    )
     coordinator.load_sensor_data(list(SENSORS))
     async_add_entities([MoonrakerSensor(coordinator, entry, desc) for desc in SENSORS])
 
@@ -380,10 +389,14 @@ async def async_setup_optional_sensors(
 ) -> None:
     """Set optional sensor platform."""
 
-    sensors = []
-    sensors += await thermal.build_temperature_sensors(coordinator)
-    sensors += await fan.build_fan_sensors(coordinator)
-    sensors += await mcu.build_mcu_sensors(coordinator)
+    # Independent discovery queries, run together but kept in a fixed order so
+    # generated entity names stay stable.
+    thermal_sensors, fan_sensors, mcu_sensors = await asyncio.gather(
+        thermal.build_temperature_sensors(coordinator),
+        fan.build_fan_sensors(coordinator),
+        mcu.build_mcu_sensors(coordinator),
+    )
+    sensors = [*thermal_sensors, *fan_sensors, *mcu_sensors]
 
     coordinator.load_sensor_data(sensors)
     async_add_entities([MoonrakerSensor(coordinator, entry, desc) for desc in sensors])
@@ -409,7 +422,9 @@ async def async_setup_history_sensors(
     if history.get("error"):
         return
 
-    coordinator.add_data_updater(_history_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _history_updater, ttl=SLOW_UPDATER_TTL, seed={"history": history}
+    )
 
     sensors = [
         MoonrakerSensorDescription(
@@ -481,14 +496,24 @@ async def async_setup_queue_sensors(
     if queue.get("queue_state") is None or queue.get("queued_jobs") is None:
         return
 
-    coordinator.add_data_updater(_queue_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _queue_updater, ttl=SLOW_UPDATER_TTL, seed={"queue": queue}
+    )
 
     sensors = [
         MoonrakerSensorDescription(
             key="queue_state",
             translation_key="queue_state",
             icon="mdi:playlist-play",
-            value_fn=lambda sensor: sensor.coordinator.data["queue"]["queue_state"],
+            # An unlisted value would make Home Assistant reject the state, so
+            # anything Moonraker adds later reads as unknown instead.
+            value_fn=lambda sensor: (
+                sensor.coordinator.data["queue"]["queue_state"]
+                if sensor.coordinator.data["queue"]["queue_state"] in QUEUESTATES.list()
+                else None
+            ),
+            device_class=SensorDeviceClass.ENUM,
+            options=QUEUESTATES.list(),
             subscriptions=[("queue_state")],
         ),
         MoonrakerSensorDescription(
@@ -527,7 +552,9 @@ async def async_setup_spoolman_sensors(
     if spoolman.get("error"):
         return
 
-    coordinator.add_data_updater(_spoolman_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _spoolman_updater, ttl=SLOW_UPDATER_TTL, seed={"spoolman": spoolman}
+    )
 
     sensors = [
         MoonrakerSensorDescription(
@@ -559,12 +586,16 @@ async def async_setup_machine_update_sensors(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Test update available."""
-    machine_status = await coordinator.async_fetch_data(
+    machine_status = await coordinator.async_fetch_shared(
         METHODS.MACHINE_UPDATE_STATUS, offline_ok=True
     )
     if machine_status.get("error") or not machine_status.get("version_info"):
         return
-    coordinator.add_data_updater(_machine_update_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _machine_update_updater,
+        ttl=SLOW_UPDATER_TTL,
+        seed={"machine_update": machine_status},
+    )
     sensors = []
 
     for version_info in machine_status["version_info"]:
@@ -573,11 +604,15 @@ async def async_setup_machine_update_sensors(
                 MoonrakerSensorDescription(
                     key="machine_update_system",
                     translation_key="machine_update_system",
-                    value_fn=lambda sensor: (
-                        f"{sensor.coordinator.data['machine_update']['version_info']['system']['package_count']} packages can be upgraded"
-                    ),
+                    # A count, not a sentence: a sensor state is a value, and
+                    # only entity names go through the translations.
+                    value_fn=lambda sensor: sensor.coordinator.data["machine_update"][
+                        "version_info"
+                    ]["system"]["package_count"],
                     subscriptions=[],
                     icon="mdi:update",
+                    state_class=SensorStateClass.MEASUREMENT,
+                    suggested_display_precision=0,
                     entity_registry_enabled_default=False,
                     entity_category=EntityCategory.DIAGNOSTIC,
                 )
@@ -652,10 +687,15 @@ class MoonrakerSensor(BaseMoonrakerEntity, SensorEntity):
         self.async_write_ha_state()
 
     def empty_result_when_not_printing(self, value: Any = "") -> Any:
-        """Return empty string when not printing."""
+        """Return a neutral value when no print is running.
+
+        Text sensors report None rather than an empty string: Home Assistant
+        shows an empty state as a blank cell, while None reads as "unknown",
+        which is what "there is no print to describe" actually means.
+        """
         if (
             self.coordinator.data["status"]["print_stats"]["state"]
             != PRINTSTATES.PRINTING.value
         ):
-            return "" if isinstance(value, str) else 0.0
+            return None if isinstance(value, str) else 0.0
         return value

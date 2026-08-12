@@ -86,19 +86,41 @@
   "entity": {
     "sensor": {
       "printer_state": {
-        "name": "Printer State"
+        "name": "Printer State",
+        "state": {
+          "ready": "Ready",
+          "startup": "Starting up",
+          "shutdown": "Shut down",
+          "error": "Error"
+        }
       },
       "printer_message": {
         "name": "Printer Message"
       },
       "current_print_state": {
-        "name": "Current Print State"
+        "name": "Current Print State",
+        "state": {
+          "standby": "Standby",
+          "printing": "Printing",
+          "paused": "Paused",
+          "complete": "Complete",
+          "cancelled": "Cancelled",
+          "error": "Error"
+        }
       },
       "current_print_message": {
         "name": "Current Print Message"
       },
       "idle_timeout_state": {
-        "name": "Idle Timeout State"
+        "name": "Idle Timeout State",
+        "state": {
+          "printing": "Printing",
+          "ready": "Ready",
+          "idle": "Idle",
+          "standby": "Standby",
+          "paused": "Paused",
+          "complete": "Complete"
+        }
       },
       "current_display_message": {
         "name": "Current Display Message"
@@ -170,7 +192,13 @@
         "name": "Longest Print"
       },
       "queue_state": {
-        "name": "Queue State"
+        "name": "Queue State",
+        "state": {
+          "ready": "Ready",
+          "loading": "Loading",
+          "starting": "Starting",
+          "paused": "Paused"
+        }
       },
       "jobs_in_queue": {
         "name": "Jobs in queue"

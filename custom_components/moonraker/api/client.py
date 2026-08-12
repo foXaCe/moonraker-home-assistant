@@ -12,13 +12,14 @@ No credential is ever logged, even at DEBUG level.
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import logging
 from contextlib import suppress
 from typing import Any
 
 import async_timeout
 from aiohttp import ClientError
-from moonraker_api import (  # type: ignore[import-not-found]
+from moonraker_api import (
     ClientNotAuthenticatedError,
     ClientNotConnectedError,
     MoonrakerClient,
@@ -60,6 +61,33 @@ class MoonrakerApiClient(MoonrakerListener):  # type: ignore[misc]
         self._connect_lock = asyncio.Lock()
         self._host = url
         self._port = port
+        self._notification_callback: Callable[[str, Any], None] | None = None
+        self._connection_epoch = 0
+
+    @property
+    def connection_epoch(self) -> int:
+        """Count of successful connections.
+
+        Moonraker scopes subscriptions to a websocket session, so a caller can
+        compare this to the value it saw when subscribing to know whether its
+        subscription is still alive.
+        """
+        return self._connection_epoch
+
+    def set_notification_callback(
+        self, callback: Callable[[str, Any], None] | None
+    ) -> None:
+        """Register the callback fed by Moonraker's websocket notifications."""
+        self._notification_callback = callback
+
+    async def on_notification(self, method: str, data: Any) -> None:
+        """Receive a push notification from Moonraker.
+
+        Called by the underlying client for every notify_* message; without this
+        the integration would only ever see what it polls for.
+        """
+        if self._notification_callback is not None:
+            self._notification_callback(method, data)
 
     @property
     def client(self) -> MoonrakerClient:
@@ -90,6 +118,7 @@ class MoonrakerApiClient(MoonrakerListener):  # type: ignore[misc]
                 try:
                     async with async_timeout.timeout(REQUEST_TIMEOUT):
                         await self._client.connect()
+                    self._connection_epoch += 1
                 except (TimeoutError, ClientError, OSError) as exc:
                     raise ApiConnectionError(
                         f"Cannot connect to Moonraker at {self._host}:{self._port}"

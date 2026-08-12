@@ -4,9 +4,14 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
-from custom_components.moonraker.const import DOMAIN
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.moonraker.const import DOMAIN, METHODS
 from custom_components.moonraker.coordinator import MoonrakerDataUpdateCoordinator
-from custom_components.moonraker.update import MoonrakerUpdateEntity
+from custom_components.moonraker.update import (
+    MoonrakerUpdateEntity,
+    _is_unsupported_method,
+)
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from .const import MOCK_CONFIG
@@ -71,17 +76,19 @@ async def test_update_entities_created_for_components(
 
     registry = er.async_get(hass)
     system = registry.async_get("update.mainsail_system_update")
-    crownest = registry.async_get("update.mainsail_crownest_update")
+    crownest = registry.async_get("update.mainsail_mise_a_jour_crownest")
     assert system is not None
     assert crownest is not None
     assert system.disabled
     assert crownest.disabled
 
-    registry.async_update_entity("update.mainsail_crownest_update", disabled_by=None)
+    registry.async_update_entity(
+        "update.mainsail_mise_a_jour_crownest", disabled_by=None
+    )
     await hass.config_entries.async_reload(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("update.mainsail_crownest_update")
+    state = hass.states.get("update.mainsail_mise_a_jour_crownest")
     assert state is not None
     assert state.state == "on"
     assert state.attributes["installed_version"] == "v4.0.4-6"
@@ -125,7 +132,7 @@ async def test_handle_coordinator_update_system_component(hass):
     entity._handle_coordinator_update()
 
     assert entity._attr_installed_version == "installed"
-    assert entity._attr_latest_version == "8 package update(s) available"
+    assert entity._attr_latest_version == "8 paquet(s) à mettre à jour"
 
 
 async def test_handle_coordinator_update_component_versions(hass):
@@ -179,3 +186,93 @@ async def test_handle_coordinator_update_missing_machine_update(hass):
 
     assert entity._attr_installed_version == "installed"
     assert entity._attr_latest_version == "latest"
+
+
+async def test_update_install_uses_upgrade(hass):
+    """Installing an update calls the modern upgrade endpoint."""
+    entity = _make_update_entity(hass, "klipper", "v0.11.0", "v0.12.0")
+
+    calls = []
+
+    async def _fetch(method, query_obj=None, **_kwargs):
+        calls.append((method, query_obj))
+        return {}
+
+    with patch.object(entity.coordinator, "async_fetch_data", _fetch):
+        await entity.async_install(None, False)
+
+    assert calls == [(METHODS.MACHINE_UPDATE_UPGRADE, {"name": "klipper"})]
+
+
+async def test_update_install_falls_back_for_known_component(hass):
+    """An instance without machine.update.upgrade uses the legacy method."""
+    entity = _make_update_entity(hass, "klipper", "v0.11.0", "v0.12.0")
+
+    calls = []
+    unsupported = {"error": {"code": -32601, "message": "Method not found"}}
+
+    async def _fetch(method, query_obj=None, **_kwargs):
+        calls.append(method)
+        return unsupported if method == METHODS.MACHINE_UPDATE_UPGRADE else {}
+
+    with patch.object(entity.coordinator, "async_fetch_data", _fetch):
+        await entity.async_install(None, False)
+
+    assert calls == [METHODS.MACHINE_UPDATE_UPGRADE, METHODS.MACHINE_UPDATE_KLIPPER]
+
+
+async def test_update_install_falls_back_to_client_for_others(hass):
+    """A client component falls back to the deprecated client method."""
+    entity = _make_update_entity(hass, "mainsail", "v2.0.0", "v2.1.0")
+
+    calls = []
+    unsupported = {"error": {"code": -32601, "message": "Method not found"}}
+
+    async def _fetch(method, query_obj=None, **_kwargs):
+        calls.append((method, query_obj))
+        return unsupported if method == METHODS.MACHINE_UPDATE_UPGRADE else {}
+
+    with patch.object(entity.coordinator, "async_fetch_data", _fetch):
+        await entity.async_install(None, False)
+
+    assert calls[-1] == (METHODS.MACHINE_UPDATE_CLIENT, {"name": "mainsail"})
+
+
+async def test_update_install_raises_when_unsupported(hass):
+    """A Moonraker that knows neither method surfaces a clear error."""
+    entity = _make_update_entity(hass, "mainsail", "v2.0.0", "v2.1.0")
+    unsupported = {"error": {"code": -32601, "message": "Method not found"}}
+
+    async def _fetch(_method, _query_obj=None, **_kwargs):
+        return unsupported
+
+    with (
+        patch.object(entity.coordinator, "async_fetch_data", _fetch),
+        pytest.raises(HomeAssistantError),
+    ):
+        await entity.async_install(None, False)
+
+
+def test_is_unsupported_method_ignores_non_dict():
+    """A non-mapping answer is not an unsupported-method error."""
+    assert _is_unsupported_method(None) is False
+    assert _is_unsupported_method("ok") is False
+    assert _is_unsupported_method({"error": "boom"}) is False
+    assert _is_unsupported_method({"error": {"code": -32601}}) is True
+
+
+async def test_update_install_surfaces_a_refusal(hass):
+    """A printer refusing the update reports the reason instead of succeeding."""
+    entity = _make_update_entity(hass, "klipper", "v0.11.0", "v0.12.0")
+    refused = {
+        "error": {"code": -32000, "message": "Update Refused: Klippy is printing"}
+    }
+
+    async def _fetch(_method, _query_obj=None, **_kwargs):
+        return refused
+
+    with (
+        patch.object(entity.coordinator, "async_fetch_data", _fetch),
+        pytest.raises(HomeAssistantError, match="Klippy is printing"),
+    ):
+        await entity.async_install(None, False)

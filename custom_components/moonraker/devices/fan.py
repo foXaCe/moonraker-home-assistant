@@ -49,7 +49,7 @@ async def build_fan_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{split_obj[0]}_{split_obj[1]}",
                 status_key=obj,
-                name=split_obj[1].replace("_", " ").title(),
+                name=fr_name("speed", split_obj[1].replace("_", " ").title()),
                 value_fn=lambda sensor: (
                     sensor.coordinator.data["status"][sensor.status_key]["speed"] * 100
                 ),
@@ -84,7 +84,7 @@ async def build_fan_sensors(
             if rpm:
                 desc = MoonrakerSensorDescription(
                     key="fan_rpm",
-                    name="Fan RPM",
+                    name=fr_name("rpm", "Ventilateur"),
                     value_fn=lambda sensor: sensor.coordinator.data["status"]["fan"][
                         "rpm"
                     ],

@@ -86,19 +86,41 @@
   "entity": {
     "sensor": {
       "printer_state": {
-        "name": "État de l'imprimante"
+        "name": "État de l'imprimante",
+        "state": {
+          "ready": "Prête",
+          "startup": "Démarrage",
+          "shutdown": "Arrêtée",
+          "error": "Erreur"
+        }
       },
       "printer_message": {
         "name": "Message de l'imprimante"
       },
       "current_print_state": {
-        "name": "État de l'impression en cours"
+        "name": "État de l'impression en cours",
+        "state": {
+          "standby": "En attente",
+          "printing": "Impression en cours",
+          "paused": "En pause",
+          "complete": "Terminée",
+          "cancelled": "Annulée",
+          "error": "Erreur"
+        }
       },
       "current_print_message": {
         "name": "Message de l'impression en cours"
       },
       "idle_timeout_state": {
-        "name": "État du délai d'inactivité"
+        "name": "État du délai d'inactivité",
+        "state": {
+          "printing": "Impression en cours",
+          "ready": "Prête",
+          "idle": "Inactive",
+          "standby": "En attente",
+          "paused": "En pause",
+          "complete": "Terminée"
+        }
       },
       "current_display_message": {
         "name": "Message affiché actuellement"
@@ -158,19 +180,25 @@
         "name": "Mémoire utilisée"
       },
       "totals_jobs": {
-        "name": "Totals jobs"
+        "name": "Nombre total d'impressions"
       },
       "totals_print_time": {
-        "name": "Totals Print Time"
+        "name": "Temps d'impression total"
       },
       "totals_filament_used": {
-        "name": "Totals Filament Used"
+        "name": "Filament total utilisé"
       },
       "longest_print": {
         "name": "Impression la plus longue"
       },
       "queue_state": {
-        "name": "État de la file d'attente"
+        "name": "État de la file d'attente",
+        "state": {
+          "ready": "Prête",
+          "loading": "Chargement",
+          "starting": "Démarrage",
+          "paused": "En pause"
+        }
       },
       "jobs_in_queue": {
         "name": "Travaux en file d'attente"

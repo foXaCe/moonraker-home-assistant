@@ -54,10 +54,10 @@ async def test_targets(hass):
 
 # test number
 @pytest.mark.parametrize(
-    "number",
-    [("mainsail_output_pin_pwm"), ("mainsail_output_pin_CAPITALIZED")],
+    ("number", "pin"),
+    [("mainsail_sortie_pwm", "pwm"), ("mainsail_sortie_capitalized", "CAPITALIZED")],
 )
-async def test_number_set_value(hass, number, get_default_api_response):
+async def test_number_set_value(hass, number, pin, get_default_api_response):
     """Test."""
     config_entry = MockConfigEntry(domain=DOMAIN, data=MOCK_CONFIG, entry_id="test")
     config_entry.add_to_hass(hass)
@@ -80,7 +80,7 @@ async def test_number_set_value(hass, number, get_default_api_response):
 
         mock_api.assert_any_call(
             METHODS.PRINTER_GCODE_SCRIPT.value,
-            script=f"SET_PIN PIN={number.split('_')[3]} VALUE=0.5",
+            script=f"SET_PIN PIN={pin} VALUE=0.5",
         )
 
 
@@ -688,11 +688,11 @@ async def test_pwm_output_pin_entity_created(hass, get_data, get_printer_objects
     await hass.async_block_till_done()
 
     entity_registry = er.async_get(hass)
-    entity = entity_registry.async_get("number.mainsail_output_pin_pwm")
+    entity = entity_registry.async_get("number.mainsail_sortie_pwm")
     assert entity is not None
     assert entity.unique_id == "test_output_pin pwm"
 
-    state = hass.states.get("number.mainsail_output_pin_pwm")
+    state = hass.states.get("number.mainsail_sortie_pwm")
     assert state is not None
     assert state.state == "50.0"
 

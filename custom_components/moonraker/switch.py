@@ -67,7 +67,11 @@ async def async_setup_power_device(
     if power_devices.get("error"):
         return
 
-    coordinator.add_data_updater(_power_device_updater, ttl=SLOW_UPDATER_TTL)
+    coordinator.add_data_updater(
+        _power_device_updater,
+        ttl=SLOW_UPDATER_TTL,
+        seed={"power_devices": power_devices},
+    )
 
     sensors = []
     for device in power_devices.get("devices", []):

@@ -23,7 +23,6 @@ async def build_macro_buttons(
     macro_objects = {obj for obj in object_names if obj.startswith("gcode_macro ")}
 
     macros: list[MoonrakerButtonDescription] = []
-    added_macro_objects = False
     for cmd, desc in cmds.items():
         enable_by_default = False
         macro_object = None
@@ -35,7 +34,6 @@ async def build_macro_buttons(
         ):
             macro_object = candidate_object
             coordinator.add_query_objects(macro_object, None)
-            added_macro_objects = True
 
         macros.append(
             MoonrakerButtonDescription(
@@ -50,9 +48,9 @@ async def build_macro_buttons(
             )
         )
 
-    if added_macro_objects:
-        await coordinator.async_request_refresh()
-
+    # No refresh here: the config entry setup issues a single refresh once every
+    # platform has subscribed its printer objects, which covers the macro
+    # objects registered above.
     return macros
 
 
@@ -61,7 +59,7 @@ async def build_service_buttons(
 ) -> list[MoonrakerButtonDescription]:
     """Build Start, Stop, and Restart button descriptions for all allowed services."""
 
-    system_info = await coordinator.async_fetch_data(
+    system_info = await coordinator.async_fetch_shared(
         METHODS.MACHINE_SYSTEM_INFO, offline_ok=True
     )
     available_services = system_info.get("system_info", {}).get(

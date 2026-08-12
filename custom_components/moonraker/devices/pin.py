@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSwitchSensorDescription
+from .labels import fr_object_label
 
 
 async def build_output_pin_switches(
@@ -27,7 +28,7 @@ async def build_output_pin_switches(
         desc = MoonrakerSwitchSensorDescription(
             key=obj,
             sensor_name=obj,
-            name=obj.replace("_", " ").title(),
+            name=fr_object_label(obj),
             icon="mdi:switch",
             subscriptions=[(obj, "value")],
         )
@@ -56,7 +57,7 @@ async def build_pwm_numbers(
         desc = MoonrakerNumberSensorDescription(
             key=obj,
             sensor_name=obj,
-            name=obj.replace("_", " ").title(),
+            name=fr_object_label(obj),
             icon="mdi:switch",
             subscriptions=[(obj, "value")],
         )

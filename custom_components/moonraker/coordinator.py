@@ -14,7 +14,7 @@ from typing import Any, cast
 
 import async_timeout
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
@@ -38,6 +38,27 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 DISCOVERY_CACHE_TTL = 60.0
+NOTIFY_STATUS_UPDATE = "notify_status_update"
+
+# Notifications that invalidate data the object subscription does not carry:
+# printer.info state, power devices, history, job queue and update status. They
+# trigger a refresh so a long polling interval costs no freshness.
+NOTIFY_REFRESH_EVENTS = frozenset(
+    {
+        "notify_klippy_ready",
+        "notify_klippy_shutdown",
+        "notify_klippy_disconnected",
+        "notify_power_changed",
+        "notify_history_changed",
+        "notify_job_queue_changed",
+        "notify_update_refreshed",
+        "notify_update_response",
+    }
+)
+
+# While Moonraker pushes updates, polling is only there to catch what a dropped
+# notification would lose, so it runs far less often than the configured rate.
+SAFETY_NET_INTERVAL = timedelta(minutes=5)
 SLOW_UPDATER_TTL = 60.0
 
 type Updater = Callable[["MoonrakerDataUpdateCoordinator"], Any]
@@ -93,18 +114,33 @@ async def _printer_objects_updater(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> dict[str, Any]:
     """Fetch the queried printer objects."""
-    return cast(
+    if not coordinator.query_obj[OBJ]:
+        # First refresh of a setup: no platform has subscribed an object yet, so
+        # querying an empty object set would be a wasted round-trip.
+        coordinator._objects_status = {}
+        return {}
+
+    result = cast(
         dict[str, Any],
         await coordinator._async_fetch_data(
             METHODS.PRINTER_OBJECTS_QUERY, coordinator.query_obj
         ),
     )
+    coordinator._objects_status = result.get("status") or {}
+    return result
 
 
 async def _printer_info_updater(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> dict[str, Any]:
     """Fetch the printer info."""
+    seeded = coordinator.initial_printer_info
+    if seeded is not None:
+        # Setup just read printer.info to identify the instance; reuse it for the
+        # first refresh instead of asking again milliseconds later.
+        coordinator.initial_printer_info = None
+        return {"printer.info": seeded}
+
     return {
         "printer.info": await coordinator._async_fetch_data(METHODS.PRINTER_INFO, None)
     }
@@ -113,17 +149,27 @@ async def _printer_info_updater(
 async def _gcode_file_detail_updater(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> dict[str, Any]:
-    """Fetch metadata of the currently printing gcode file."""
-    data = await coordinator._async_fetch_data(
-        METHODS.PRINTER_OBJECTS_QUERY, coordinator.query_obj
-    )
+    """Fetch metadata of the currently printing gcode file.
+
+    Reads the printer objects fetched by ``_printer_objects_updater`` earlier in
+    the same refresh cycle instead of re-querying the whole object set: the two
+    updaters run in order, so the status is always fresh here.
+    """
     filename = ""
-    status = data.get("status") or {}
+    status = coordinator._objects_status
     print_stats = status.get("print_stats") or {}
     filename = print_stats.get("filename") or ""
     if not filename:
         virtual_sdcard = status.get("virtual_sdcard") or {}
         filename = virtual_sdcard.get("file_path") or ""
+
+    # A gcode file does not change while it is being printed, so its metadata is
+    # cached per filename. A new print starting is the one moment the same name
+    # can point at a re-sliced file, so the cache is dropped there.
+    state = print_stats.get("state")
+    if state == PRINTSTATES.PRINTING.value and coordinator._gcode_detail_state != state:
+        coordinator._gcode_detail_cache = None
+    coordinator._gcode_detail_state = state
 
     return await coordinator._async_get_gcode_file_detail(filename)
 
@@ -137,9 +183,11 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         client: MoonrakerApiClient,
         config_entry: ConfigEntry,
         api_device_name: str,
+        printer_info: dict[str, Any] | None = None,
     ) -> None:
         """Initialize the coordinator."""
         self.moonraker = client
+        self.initial_printer_info = printer_info
         self.platforms: list[str] = []
         self.updaters: list[Updater] = [
             _printer_objects_updater,
@@ -152,6 +200,14 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.query_obj: dict[str, dict[str, Any]] = {OBJ: {}}
         self.objects_list: dict[str, Any] | None = None
         self.configfile_settings: dict[str, Any] | None = None
+        self._objects_status: dict[str, Any] = {}
+        self._gcode_detail_cache: tuple[str, dict[str, Any]] | None = None
+        self._gcode_detail_state: str | None = None
+        self._shared_fetches: dict[METHODS, tuple[float, asyncio.Task[Any]]] = {}
+        self._subscribed = False
+        self._subscription_epoch: int | None = None
+        self.discovery_degraded = False
+        self._last_print_state: str | None = None
         self._discovery_cache_time: float | None = None
         self._updater_times: dict[Updater, float] = {}
         self._default_interval = timedelta(
@@ -168,6 +224,8 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via the Moonraker API."""
+        await self._async_resubscribe_if_reconnected()
+
         data: dict[str, Any] = dict(self.data or {})
 
         for updater in self.updaters:
@@ -176,18 +234,44 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self._refresh_discovery_cache()
 
         # --- Dynamic polling logic ---
-        prev_state = getattr(self, "_last_print_state", None)
+        prev_state = self._last_print_state
         current_state = data.get("status", {}).get("print_stats", {}).get("state")
         if current_state != prev_state:
-            if current_state == PRINTSTATES.PRINTING.value:
-                self.update_interval = timedelta(seconds=2)
-            else:
-                self.update_interval = self._default_interval
+            self.update_interval = self._target_interval(current_state)
             self._schedule_refresh()
         self._last_print_state = current_state
         # --- end dynamic polling logic ---
 
         return data
+
+    def _target_interval(self, print_state: str | None) -> timedelta:
+        """Return the polling interval matching the current mode.
+
+        Once subscribed, Moonraker pushes every object change, so the fast
+        printing cadence buys nothing and polling drops to a safety net. A user
+        who configured an even longer rate keeps theirs.
+        """
+        if self._subscribed:
+            return max(self._default_interval, SAFETY_NET_INTERVAL)
+        if print_state == PRINTSTATES.PRINTING.value:
+            return timedelta(seconds=2)
+        return self._default_interval
+
+    async def _async_resubscribe_if_reconnected(self) -> None:
+        """Re-subscribe when the websocket session was replaced.
+
+        Moonraker drops subscriptions along with the session that made them, and
+        the client reconnects on its own, so a subscription silently stops
+        delivering after any connection loss.
+        """
+        if not self._subscribed:
+            return
+        if self.moonraker.connection_epoch == self._subscription_epoch:
+            return
+
+        _LOGGER.debug("Websocket reconnected; subscribing to printer objects again")
+        self._subscribed = False
+        await self.async_subscribe_objects()
 
     async def _refresh_discovery_cache(self) -> None:
         """Refresh the cached objects list and configfile settings.
@@ -205,21 +289,37 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         ):
             return
 
-        with suppress(UpdateFailed, ConfigEntryAuthFailed):
-            self.objects_list = await self._async_fetch_data(
-                METHODS.PRINTER_OBJECTS_LIST, None
-            )
-            self._discovery_cache_time = now
+        objects_list, config_query = await asyncio.gather(
+            self._fetch_or_none(METHODS.PRINTER_OBJECTS_LIST, None),
+            self._fetch_or_none(
+                METHODS.PRINTER_OBJECTS_QUERY, {OBJ: {"configfile": ["settings"]}}
+            ),
+        )
 
-        with suppress(UpdateFailed, ConfigEntryAuthFailed):
-            config_query = await self._async_fetch_data(
-                METHODS.PRINTER_OBJECTS_QUERY,
-                {OBJ: {"configfile": ["settings"]}},
-            )
+        # Moonraker answers errors in-band, so an error payload would otherwise
+        # be cached and used as if it were the object list.
+        objects_ok = isinstance(objects_list, dict) and "objects" in objects_list
+        if objects_ok:
+            self.objects_list = objects_list
+
+        if config_query is not None:
             self.configfile_settings = (
                 config_query.get("status", {}).get("configfile", {}).get("settings", {})
             )
+
+        # Only a complete discovery starts the TTL, otherwise a single failed
+        # request would be skipped for a whole cache window.
+        if objects_ok and config_query is not None:
             self._discovery_cache_time = now
+
+    async def _fetch_or_none(
+        self, query_path: METHODS, query_object: dict[str, Any] | None
+    ) -> Any:
+        """Fetch an endpoint, returning None when the printer cannot answer."""
+        try:
+            return await self._async_fetch_data(query_path, query_object)
+        except (UpdateFailed, ConfigEntryAuthFailed):
+            return None
 
     async def _async_get_gcode_file_detail(
         self, gcode_filename: str | None
@@ -244,6 +344,12 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not normalized_filename:
             return return_gcode
 
+        if (
+            self._gcode_detail_cache is not None
+            and self._gcode_detail_cache[0] == normalized_filename
+        ):
+            return dict(self._gcode_detail_cache[1])
+
         dirname = os.path.dirname(normalized_filename)
 
         query_object = {"filename": normalized_filename}
@@ -261,6 +367,7 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         thumbnails = gcode.get("thumbnails")
         if not thumbnails or not isinstance(thumbnails, list):
+            self._gcode_detail_cache = (normalized_filename, dict(return_gcode))
             return return_gcode
 
         best_path = None
@@ -289,11 +396,13 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 best_path = relative_path
 
         if not best_path:
+            self._gcode_detail_cache = (normalized_filename, dict(return_gcode))
             return return_gcode
 
         return_gcode["thumbnails_path"] = helpers.build_thumbnail_path(
             dirname, best_path, root
         )
+        self._gcode_detail_cache = (normalized_filename, dict(return_gcode))
         return return_gcode
 
     async def _async_fetch_data(
@@ -347,10 +456,120 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         with entities in an unavailable state.
         """
         try:
-            return await self._async_fetch_data(query_path, query_obj)
+            result = await self._async_fetch_data(query_path, query_obj)
         except UpdateFailed:
             if offline_ok:
+                # The caller will create no entity for this endpoint; remember
+                # that what we discovered is incomplete.
+                self.discovery_degraded = True
                 return {}
+            raise
+
+        if isinstance(result, dict) and result.get("error") is not None:
+            self.discovery_degraded = True
+        return result
+
+    async def async_subscribe_objects(self) -> None:
+        """Subscribe to the printer objects the entities depend on.
+
+        Moonraker then pushes every change over the websocket that is already
+        open, so entity values follow the printer instead of waiting for the
+        next poll. Polling stays enabled as a safety net: it catches anything a
+        dropped notification would otherwise lose.
+        """
+        if not self.query_obj[OBJ]:
+            return
+
+        self.moonraker.set_notification_callback(self._handle_notification)
+
+        try:
+            result = await self._async_fetch_data(
+                METHODS.PRINTER_OBJECTS_SUBSCRIBE, self.query_obj
+            )
+        except (UpdateFailed, ConfigEntryAuthFailed):
+            self.moonraker.set_notification_callback(None)
+            _LOGGER.debug("Could not subscribe to printer objects; polling only")
+            return
+
+        self._subscribed = True
+        self._subscription_epoch = self.moonraker.connection_epoch
+        self.update_interval = self._target_interval(self._last_print_state)
+        self._schedule_refresh()
+
+        status = (result or {}).get("status")
+        if status:
+            self._apply_status_update(status)
+            # The printer may have moved on since the last refresh; publish the
+            # subscription's own snapshot rather than waiting for a change.
+            self.async_set_updated_data(dict(self.data or {}))
+
+    @callback
+    def _handle_notification(self, method: str, data: Any) -> None:
+        """Handle a websocket notification pushed by Moonraker."""
+        if method in NOTIFY_REFRESH_EVENTS:
+            # These change data the subscription does not carry; drop the TTL
+            # windows so the refresh actually re-reads those endpoints.
+            self._updater_times.clear()
+            self.hass.async_create_task(self.async_request_refresh())
+            return
+
+        if method != NOTIFY_STATUS_UPDATE:
+            return
+
+        # notify_status_update carries [changed_objects, eventtime].
+        if not isinstance(data, list) or not data:
+            return
+        status = data[0]
+        if not isinstance(status, dict) or not status:
+            return
+
+        self._apply_status_update(status)
+        self.async_set_updated_data(dict(self.data or {}))
+
+    def _apply_status_update(self, status: dict[str, Any]) -> None:
+        """Merge a partial status payload into the coordinator data."""
+        data = dict(self.data or {})
+        merged = dict(data.get("status") or {})
+
+        for obj, values in status.items():
+            if isinstance(values, dict) and isinstance(merged.get(obj), dict):
+                updated = dict(merged[obj])
+                updated.update(values)
+                merged[obj] = updated
+            else:
+                merged[obj] = values
+
+        data["status"] = merged
+        self._objects_status = merged
+        self.data = data
+
+    async def async_fetch_shared(
+        self,
+        query_path: METHODS,
+        ttl: float = SLOW_UPDATER_TTL,
+        offline_ok: bool = False,
+    ) -> Any:
+        """Fetch an endpoint several platforms need, querying it only once.
+
+        Platform setups run concurrently, so a plain cache would still let two
+        of them issue the same call. The pending task is shared instead: the
+        second caller awaits the first one's result, and that result is reused
+        for ``ttl`` seconds afterwards.
+        """
+        now = time.monotonic()
+        pending = self._shared_fetches.get(query_path)
+        if pending is not None and now - pending[0] < ttl:
+            return await pending[1]
+
+        task = self.hass.async_create_task(
+            self.async_fetch_data(query_path, offline_ok=offline_ok)
+        )
+        self._shared_fetches[query_path] = (now, task)
+        try:
+            return await task
+        except BaseException:
+            # Do not let a failed call poison the cache for the whole TTL.
+            self._shared_fetches.pop(query_path, None)
             raise
 
     async def async_send_data(
@@ -359,14 +578,30 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Send data to Moonraker."""
         return await self._async_send_data(query_path, query_obj)
 
-    def add_data_updater(self, updater: Updater, ttl: float | None = None) -> None:
+    def add_data_updater(
+        self,
+        updater: Updater,
+        ttl: float | None = None,
+        seed: dict[str, Any] | None = None,
+    ) -> None:
         """Add a data updater to the refresh cycle.
 
         When ``ttl`` is set, the updater is only re-run when the previous run is
         older than ``ttl`` seconds; the last value is kept in between. This keeps
         rarely changing endpoints (system info, history, …) from being polled on
         every refresh.
+
+        ``seed`` carries the value a platform already fetched during its setup.
+        It is injected into the coordinator data and starts the TTL window, so
+        the next refresh does not immediately repeat the same round-trip.
         """
+        if seed is not None:
+            if self.data is None:
+                self.data = dict(seed)
+            else:
+                self.data.update(seed)
+            if ttl is not None:
+                self._updater_times[updater] = time.monotonic()
         if ttl is not None:
             updater = _ttl_updater(updater, ttl)
         self.updaters.append(updater)

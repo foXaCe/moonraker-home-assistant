@@ -15,9 +15,15 @@ from homeassistant.helpers.update_coordinator import (
     DataUpdateCoordinator,
     UpdateFailed,
 )
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+)
 
 from custom_components.moonraker import (
+    STALE_ENTITY_SCAN_DELAY,
+    _async_remove_stale_entities,
     _async_migrate_entity_unique_ids,
     async_reload_entry,
     async_setup_entry,
@@ -982,6 +988,10 @@ async def test_polling_interval_changes_on_print_state(hass, get_data):
     await hass.config_entries.async_setup(config_entry.entry_id)
     coordinator = config_entry.runtime_data.coordinator
 
+    # This covers the polling fallback, i.e. a printer that pushes nothing.
+    coordinator._subscribed = False
+    coordinator.update_interval = coordinator._target_interval(None)
+
     # Default should be 30 seconds
     assert coordinator.update_interval == timedelta(seconds=30)
 
@@ -1025,6 +1035,9 @@ async def test_polling_interval_no_change_on_same_state(hass, get_data):
     config_entry.add_to_hass(hass)
     await hass.config_entries.async_setup(config_entry.entry_id)
     coordinator = config_entry.runtime_data.coordinator
+
+    coordinator._subscribed = False
+    coordinator.update_interval = coordinator._target_interval(None)
 
     with patch.object(coordinator, "_schedule_refresh") as mock_refresh:
         # Call update with the same state
@@ -1433,3 +1446,155 @@ async def test_async_fetch_data_offline_ok_returns_empty(hass):
             METHODS.PRINTER_INFO, offline_ok=True
         )
     assert result == {}
+
+
+async def test_stale_entities_are_removed(hass, get_default_api_response):
+    """A registry entity the printer no longer exposes is dropped."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="stale", unique_id="stale-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    stale = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "stale-uuid_a_sensor_that_no_longer_exists",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_gone",
+    )
+
+    with patch("custom_components.moonraker.MoonrakerApiClient.start"):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+        # The scan is deferred until the entities have actually been added.
+        assert entity_registry.async_get(stale.entity_id) is not None
+
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
+
+    assert entity_registry.async_get(stale.entity_id) is None
+
+
+async def test_stale_entities_are_kept_when_printer_is_offline(
+    hass, get_default_api_response
+):
+    """An unreachable printer must never cause an entity to be deleted."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="offline", unique_id="offline-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    stale = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "offline-uuid_a_sensor_that_no_longer_exists",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_offline_gone",
+    )
+
+    with (
+        patch("custom_components.moonraker.MoonrakerApiClient.start"),
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
+
+    assert entity_registry.async_get(stale.entity_id) is not None
+
+
+async def test_disabled_entities_are_kept(hass, get_default_api_response):
+    """A disabled entity has no state and must not be treated as stale."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="disabled", unique_id="disabled-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    disabled = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "disabled-uuid_a_disabled_sensor",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_disabled",
+        disabled_by=er.RegistryEntryDisabler.USER,
+    )
+
+    with patch("custom_components.moonraker.MoonrakerApiClient.start"):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
+
+    assert entity_registry.async_get(disabled.entity_id) is not None
+
+
+async def test_stale_scan_does_nothing_without_live_entities(hass):
+    """A scan finding no live entity keeps the registry untouched."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="empty", unique_id="empty-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    orphan = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "empty-uuid_never_created",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_never_created",
+    )
+
+    # The entry was never set up, so it holds no runtime data at all.
+    _async_remove_stale_entities(hass, config_entry)
+
+    assert entity_registry.async_get(orphan.entity_id) is not None
+
+    # With runtime data but no live entity, the scan still refuses to prune.
+    config_entry.runtime_data = SimpleNamespace(
+        coordinator=SimpleNamespace(
+            discovery_degraded=False, objects_list={"objects": []}
+        )
+    )
+    _async_remove_stale_entities(hass, config_entry)
+
+    assert entity_registry.async_get(orphan.entity_id) is not None
+
+
+async def test_stale_scan_skipped_when_discovery_degraded(
+    hass, get_default_api_response
+):
+    """A failed optional endpoint must not cost the user an entity."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="degraded", unique_id="degraded-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    orphan = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "degraded-uuid_gone",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_degraded_gone",
+    )
+
+    with patch("custom_components.moonraker.MoonrakerApiClient.start"):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+        # One endpoint could not be read during this setup.
+        config_entry.runtime_data.coordinator.discovery_degraded = True
+
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
+
+    assert entity_registry.async_get(orphan.entity_id) is not None

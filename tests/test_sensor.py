@@ -32,12 +32,12 @@ DEFAULT_VALUES = [
     ("mainsail_progress", "90.7810423766328"),
     ("mainsail_print_speed", "123.46"),
     ("mainsail_printer_state", "ready"),
-    ("mainsail_idle_timeout_state", "Ready"),
+    ("mainsail_idle_timeout_state", "ready"),
     ("mainsail_filename", "CE3E3V2_picture_frame_holder.gcode"),
     ("mainsail_current_display_message", "Custom Message"),
     ("mainsail_printer_message", "Printer is ready"),
     ("mainsail_current_print_state", "printing"),
-    ("mainsail_current_print_message", ""),
+    ("mainsail_current_print_message", "unknown"),
     ("mainsail_print_projected_total_duration", "2.55485108570028"),
     ("mainsail_print_time_left", "0.328593266620827"),
     ("mainsail_print_duration", "133.575469144767"),
@@ -45,7 +45,7 @@ DEFAULT_VALUES = [
     ("mainsail_progress", "90.7810423766328"),
     ("mainsail_puissance_du_plateau", "26.0537452725334"),
     ("mainsail_puissance_de_l_extrudeuse", "66.6710806392505"),
-    ("mainsail_fan_rpm", "3000.12321"),
+    ("mainsail_rpm_ventilateur", "3000.12321"),
     ("mainsail_temperature_fan", "32.43"),
     ("mainsail_temperature_tmc2240_stepper_x", "32.43"),
     ("mainsail_temperature_bme280", "32.43"),
@@ -63,10 +63,10 @@ DEFAULT_VALUES = [
     ("mainsail_temperature_sht3x", "32.43"),
     ("mainsail_humidite_sht3x_temp", "43.0"),
     ("mainsail_temperature_lm75", "32.43"),
-    ("mainsail_heater_fan", "51.23"),
-    ("mainsail_controller_fan", "51.23"),
+    ("mainsail_vitesse_heater_fan", "51.23"),
+    ("mainsail_vitesse_controller_fan", "51.23"),
     ("mainsail_rpm_controller_fan", "5000.32123"),
-    ("mainsail_nevermore_fan", "12.34"),
+    ("mainsail_vitesse_nevermore_fan", "12.34"),
     ("mainsail_totals_print_time", "3h 9m 9s"),
     ("mainsail_totals_jobs", "3"),
     ("mainsail_totals_filament_used", "11.615718840002"),
@@ -164,7 +164,7 @@ async def test_idle_timeout_state_normalized(hass, get_data):
     await hass.async_block_till_done()
 
     state = hass.states.get("sensor.mainsail_idle_timeout_state")
-    assert state.state == "Standby"
+    assert state.state == "standby"
 
 
 async def test_idle_timeout_state_complete(hass, get_data):
@@ -179,8 +179,8 @@ async def test_idle_timeout_state_complete(hass, get_data):
     await hass.async_block_till_done()
 
     state = hass.states.get("sensor.mainsail_idle_timeout_state")
-    assert state.state == "Complete"
-    assert "Complete" in state.attributes["options"]
+    assert state.state == "complete"
+    assert "complete" in state.attributes["options"]
 
 
 def test_idle_timeout_state_handles_missing():
@@ -211,7 +211,7 @@ def test_idle_timeout_state_blank_returns_none():
 @pytest.mark.parametrize(
     "sensor, value",
     [
-        ("mainsail_machine_update_system", "8 packages can be upgraded"),
+        ("mainsail_machine_update_system", "8"),
         ("mainsail_version_crownest", "v4.0.4-6 > v4.1.1-1"),
         ("mainsail_version_mainsail", "v2.8.0"),
     ],
@@ -252,7 +252,7 @@ async def test_disabled_sensors(
 @pytest.mark.parametrize(
     "sensor_not_printing, value",
     [
-        ("mainsail_filename", ""),
+        ("mainsail_filename", "unknown"),
         ("mainsail_current_print_state", "standby"),
         ("mainsail_filament_used", "0.0"),
         ("mainsail_print_duration", "0.0"),
@@ -635,7 +635,7 @@ async def test_no_fan_sensor(hass, get_data, get_printer_objects_list):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.mainsail_fan_rpm")
+    state = hass.states.get("sensor.mainsail_rpm_ventilateur")
     assert state is None
 
 
@@ -650,10 +650,10 @@ async def test_no_fan_rpm(hass, get_data, get_printer_objects_list):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.mainsail_fan_rpm") is None
+    assert hass.states.get("sensor.mainsail_rpm_ventilateur") is None
 
     # Already None in the data
-    assert hass.states.get("sensor.mainsail_heater_fan_rpm") is None
+    assert hass.states.get("sensor.mainsail_rpm_heater_fan") is None
 
 
 async def test_multi_mcu_sensor_data(hass, get_data, get_printer_objects_list):
@@ -1377,3 +1377,34 @@ async def test_optional_sensors_ignores_empty_object_name(
     # If the guard works, setup completes without raising.
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def test_driver_without_temperature_creates_no_sensor(hass, get_data):
+    """A stepper driver reporting no die temperature yields no sensor."""
+    get_data["status"]["tmc2240 tmc2240_stepper_x_temp"]["temperature"] = None
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.mainsail_temperature_tmc2240_stepper_x") is None
+
+
+async def test_queue_state_unknown_value_is_not_reported(
+    hass, get_default_api_response
+):
+    """A queue state Moonraker adds later reads as unknown, not as an error."""
+    get_default_api_response["queue_state"] = "some_future_state"
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    state = hass.states.get("sensor.mainsail_etat_de_la_file_d_attente")
+    assert state is None or state.state == "unknown"
