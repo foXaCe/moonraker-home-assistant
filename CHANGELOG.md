@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.1](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.0...moonraker-home-assistant-1.16.1) (2026-08-12)
+
+
+### Bug Fixes
+
+* stop removing registry entities automatically ([#24](https://github.com/foXaCe/moonraker-home-assistant/issues/24)) ([2b6ace7](https://github.com/foXaCe/moonraker-home-assistant/commit/2b6ace7fe4127b5bb41a2190f770770f054ef1cd))
+
 ## [1.16.0](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.15.0...moonraker-home-assistant-1.16.0) (2026-08-12)
 
 ### Features
