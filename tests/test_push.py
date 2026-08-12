@@ -182,3 +182,74 @@ async def test_out_of_band_events_trigger_a_refresh(hass):
 
     assert coordinator._updater_times == {}
     refresh.assert_awaited_once()
+
+
+async def test_subscription_is_restored_after_reconnect(hass):
+    """A replaced websocket session gets its subscription back."""
+    coordinator = _coordinator(hass)
+    coordinator.add_query_objects("fan", "speed")
+    coordinator.moonraker.connection_epoch = 1
+
+    with patch.object(
+        coordinator, "_async_fetch_data", new_callable=AsyncMock, return_value={}
+    ) as fetch:
+        await coordinator.async_subscribe_objects()
+        assert coordinator._subscribed is True
+
+        # Same session: nothing to redo.
+        await coordinator._async_resubscribe_if_reconnected()
+        assert fetch.await_count == 1
+
+        # The client reconnected, so Moonraker dropped the subscription.
+        coordinator.moonraker.connection_epoch = 2
+        await coordinator._async_resubscribe_if_reconnected()
+
+    assert fetch.await_count == 2
+    assert coordinator._subscription_epoch == 2
+
+
+async def test_no_resubscribe_when_never_subscribed(hass):
+    """Polling-only setups are left alone."""
+    coordinator = _coordinator(hass)
+    coordinator.moonraker.connection_epoch = 5
+
+    with patch.object(
+        coordinator, "_async_fetch_data", new_callable=AsyncMock
+    ) as fetch:
+        await coordinator._async_resubscribe_if_reconnected()
+
+    fetch.assert_not_awaited()
+
+
+async def test_failed_optional_fetch_marks_discovery_degraded(hass):
+    """An endpoint that could not answer flags the discovery as incomplete."""
+    coordinator = _coordinator(hass)
+    assert coordinator.discovery_degraded is False
+
+    async def _failing(*_args, **_kwargs):
+        raise UpdateFailed
+
+    with patch.object(coordinator, "_async_fetch_data", _failing):
+        assert (
+            await coordinator.async_fetch_data(
+                METHODS.SERVER_SPOOLMAN_ID, offline_ok=True
+            )
+            == {}
+        )
+
+    assert coordinator.discovery_degraded is True
+
+
+async def test_error_payload_marks_discovery_degraded(hass):
+    """Moonraker answering an error in-band counts as a failed discovery."""
+    coordinator = _coordinator(hass)
+
+    async def _error(*_args, **_kwargs):
+        return {"error": {"code": -32601, "message": "Method not found"}}
+
+    with patch.object(coordinator, "_async_fetch_data", _error):
+        await coordinator.async_fetch_data(
+            METHODS.MACHINE_UPDATE_STATUS, offline_ok=True
+        )
+
+    assert coordinator.discovery_degraded is True

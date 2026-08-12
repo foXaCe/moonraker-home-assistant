@@ -246,6 +246,18 @@ def _async_remove_stale_entities(
     exposes nothing and must never be a reason to delete an entity. Disabled
     entities are never instantiated, so they are skipped as well.
     """
+    data: MoonrakerData | None = getattr(entry, "runtime_data", None)
+    if data is None:
+        return
+
+    coordinator = data.coordinator
+    if coordinator.discovery_degraded or coordinator.objects_list is None:
+        # An endpoint that failed produces no entity, which is indistinguishable
+        # from one the printer no longer exposes. Removing anything here would
+        # delete entities over a transient error.
+        _LOGGER.debug("Skipping stale entity scan: discovery was incomplete")
+        return
+
     live_unique_ids = {
         entity.unique_id
         for platform in async_get_platforms(hass, DOMAIN)

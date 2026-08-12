@@ -205,6 +205,8 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._gcode_detail_state: str | None = None
         self._shared_fetches: dict[METHODS, tuple[float, asyncio.Task[Any]]] = {}
         self._subscribed = False
+        self._subscription_epoch: int | None = None
+        self.discovery_degraded = False
         self._last_print_state: str | None = None
         self._discovery_cache_time: float | None = None
         self._updater_times: dict[Updater, float] = {}
@@ -222,6 +224,8 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via the Moonraker API."""
+        await self._async_resubscribe_if_reconnected()
+
         data: dict[str, Any] = dict(self.data or {})
 
         for updater in self.updaters:
@@ -253,6 +257,22 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return timedelta(seconds=2)
         return self._default_interval
 
+    async def _async_resubscribe_if_reconnected(self) -> None:
+        """Re-subscribe when the websocket session was replaced.
+
+        Moonraker drops subscriptions along with the session that made them, and
+        the client reconnects on its own, so a subscription silently stops
+        delivering after any connection loss.
+        """
+        if not self._subscribed:
+            return
+        if self.moonraker.connection_epoch == self._subscription_epoch:
+            return
+
+        _LOGGER.debug("Websocket reconnected; subscribing to printer objects again")
+        self._subscribed = False
+        await self.async_subscribe_objects()
+
     async def _refresh_discovery_cache(self) -> None:
         """Refresh the cached objects list and configfile settings.
 
@@ -278,14 +298,18 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         # Moonraker answers errors in-band, so an error payload would otherwise
         # be cached and used as if it were the object list.
-        if isinstance(objects_list, dict) and "objects" in objects_list:
+        objects_ok = isinstance(objects_list, dict) and "objects" in objects_list
+        if objects_ok:
             self.objects_list = objects_list
-            self._discovery_cache_time = now
 
         if config_query is not None:
             self.configfile_settings = (
                 config_query.get("status", {}).get("configfile", {}).get("settings", {})
             )
+
+        # Only a complete discovery starts the TTL, otherwise a single failed
+        # request would be skipped for a whole cache window.
+        if objects_ok and config_query is not None:
             self._discovery_cache_time = now
 
     async def _fetch_or_none(
@@ -432,11 +456,18 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         with entities in an unavailable state.
         """
         try:
-            return await self._async_fetch_data(query_path, query_obj)
+            result = await self._async_fetch_data(query_path, query_obj)
         except UpdateFailed:
             if offline_ok:
+                # The caller will create no entity for this endpoint; remember
+                # that what we discovered is incomplete.
+                self.discovery_degraded = True
                 return {}
             raise
+
+        if isinstance(result, dict) and result.get("error") is not None:
+            self.discovery_degraded = True
+        return result
 
     async def async_subscribe_objects(self) -> None:
         """Subscribe to the printer objects the entities depend on.
@@ -461,12 +492,16 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         self._subscribed = True
+        self._subscription_epoch = self.moonraker.connection_epoch
         self.update_interval = self._target_interval(self._last_print_state)
         self._schedule_refresh()
 
         status = (result or {}).get("status")
         if status:
             self._apply_status_update(status)
+            # The printer may have moved on since the last refresh; publish the
+            # subscription's own snapshot rather than waiting for a change.
+            self.async_set_updated_data(dict(self.data or {}))
 
     @callback
     def _handle_notification(self, method: str, data: Any) -> None:

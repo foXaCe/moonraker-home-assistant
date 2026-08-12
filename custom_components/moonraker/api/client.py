@@ -62,6 +62,17 @@ class MoonrakerApiClient(MoonrakerListener):  # type: ignore[misc]
         self._host = url
         self._port = port
         self._notification_callback: Callable[[str, Any], None] | None = None
+        self._connection_epoch = 0
+
+    @property
+    def connection_epoch(self) -> int:
+        """Count of successful connections.
+
+        Moonraker scopes subscriptions to a websocket session, so a caller can
+        compare this to the value it saw when subscribing to know whether its
+        subscription is still alive.
+        """
+        return self._connection_epoch
 
     def set_notification_callback(
         self, callback: Callable[[str, Any], None] | None
@@ -107,6 +118,7 @@ class MoonrakerApiClient(MoonrakerListener):  # type: ignore[misc]
                 try:
                     async with async_timeout.timeout(REQUEST_TIMEOUT):
                         await self._client.connect()
+                    self._connection_epoch += 1
                 except (TimeoutError, ClientError, OSError) as exc:
                     raise ApiConnectionError(
                         f"Cannot connect to Moonraker at {self._host}:{self._port}"

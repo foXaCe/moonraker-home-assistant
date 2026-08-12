@@ -1553,7 +1553,48 @@ async def test_stale_scan_does_nothing_without_live_entities(hass):
         suggested_object_id="mainsail_never_created",
     )
 
-    # The entry was never set up, so no platform holds any entity.
+    # The entry was never set up, so it holds no runtime data at all.
     _async_remove_stale_entities(hass, config_entry)
+
+    assert entity_registry.async_get(orphan.entity_id) is not None
+
+    # With runtime data but no live entity, the scan still refuses to prune.
+    config_entry.runtime_data = SimpleNamespace(
+        coordinator=SimpleNamespace(
+            discovery_degraded=False, objects_list={"objects": []}
+        )
+    )
+    _async_remove_stale_entities(hass, config_entry)
+
+    assert entity_registry.async_get(orphan.entity_id) is not None
+
+
+async def test_stale_scan_skipped_when_discovery_degraded(
+    hass, get_default_api_response
+):
+    """A failed optional endpoint must not cost the user an entity."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="degraded", unique_id="degraded-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    entity_registry = er.async_get(hass)
+    orphan = entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "degraded-uuid_gone",
+        config_entry=config_entry,
+        suggested_object_id="mainsail_degraded_gone",
+    )
+
+    with patch("custom_components.moonraker.MoonrakerApiClient.start"):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+        # One endpoint could not be read during this setup.
+        config_entry.runtime_data.coordinator.discovery_degraded = True
+
+        async_fire_time_changed(hass, dt_util.utcnow() + STALE_ENTITY_SCAN_DELAY * 2)
+        await hass.async_block_till_done()
 
     assert entity_registry.async_get(orphan.entity_id) is not None
