@@ -26,7 +26,7 @@ from . import helpers
 from .const import METHODS, PRINTERSTATES, PRINTSTATES, QUEUESTATES
 from .coordinator import SLOW_UPDATER_TTL
 from .coordinator import MoonrakerDataUpdateCoordinator
-from .devices import fan, mcu, thermal
+from .devices import fan, filament, mcu, thermal
 from .devices.base import MoonrakerSensorDescription
 from .entity import BaseMoonrakerEntity
 
@@ -391,12 +391,13 @@ async def async_setup_optional_sensors(
 
     # Independent discovery queries, run together but kept in a fixed order so
     # generated entity names stay stable.
-    thermal_sensors, fan_sensors, mcu_sensors = await asyncio.gather(
+    thermal_sensors, fan_sensors, mcu_sensors, filament_sensors = await asyncio.gather(
         thermal.build_temperature_sensors(coordinator),
         fan.build_fan_sensors(coordinator),
         mcu.build_mcu_sensors(coordinator),
+        filament.build_filament_sensors(coordinator),
     )
-    sensors = [*thermal_sensors, *fan_sensors, *mcu_sensors]
+    sensors = [*thermal_sensors, *fan_sensors, *mcu_sensors, *filament_sensors]
 
     coordinator.load_sensor_data(sensors)
     async_add_entities([MoonrakerSensor(coordinator, entry, desc) for desc in sensors])
@@ -672,6 +673,17 @@ class MoonrakerSensor(BaseMoonrakerEntity, SensorEntity):
         self._attr_native_value = self._evaluate_value_fn()
         self._attr_icon = description.icon
         self._attr_native_unit_of_measurement = description.unit
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return the extra attributes a description chose to expose."""
+        extra_state_fn = self.entity_description.extra_state_fn
+        if extra_state_fn is None:
+            return None
+        try:
+            return extra_state_fn(self)
+        except (KeyError, TypeError, IndexError, AttributeError):
+            return None
 
     def _evaluate_value_fn(self) -> Any:
         """Evaluate the value function, tolerating incomplete printer data."""

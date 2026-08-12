@@ -26,6 +26,9 @@ class MoonrakerSensorDescription(SensorEntityDescription):
     icon: str | None = None
     unit: str | None = None
     subscriptions: list[Any] | None = None
+    # Optional extra attributes, for sensors whose state alone cannot carry
+    # everything the printer reports.
+    extra_state_fn: Callable[[Any], dict[str, Any] | None] | None = None
 
 
 @dataclass(frozen=True)

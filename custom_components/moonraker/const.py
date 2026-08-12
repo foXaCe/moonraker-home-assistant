@@ -41,6 +41,20 @@ CONF_OPTION_THUMBNAIL_PORT = "thumbnail_port"
 # API dict keys
 HOSTNAME = "hostname"
 OBJ = "objects"
+
+# Snapmaker U1 exposes per-extruder filament information through this object.
+# Other printers simply do not list it.
+FILAMENT_INFO_OBJECT = "print_task_config"
+FILAMENT_INFO_FIELDS = (
+    "filament_color_rgba",
+    "filament_vendor",
+    "filament_type",
+    "filament_sub_type",
+    "filament_official",
+    "filament_sku",
+    "filament_edit",
+    "filament_soft",
+)
 SERVER_INFO_UUID = "uuid"
 
 # API timeout
