@@ -253,3 +253,23 @@ async def test_error_payload_marks_discovery_degraded(hass):
         )
 
     assert coordinator.discovery_degraded is True
+
+
+async def test_subscription_snapshot_reaches_listeners(hass):
+    """The subscription's own status is published, not just stored."""
+    coordinator = _coordinator(hass)
+    coordinator.add_query_objects("fan", "speed")
+
+    updates = []
+    coordinator.async_add_listener(lambda: updates.append(dict(coordinator.data or {})))
+
+    with patch.object(
+        coordinator,
+        "_async_fetch_data",
+        new_callable=AsyncMock,
+        return_value={"status": {"fan": {"speed": 0.75}}},
+    ):
+        await coordinator.async_subscribe_objects()
+
+    assert updates, "listeners were never notified of the subscription snapshot"
+    assert updates[-1]["status"]["fan"]["speed"] == 0.75

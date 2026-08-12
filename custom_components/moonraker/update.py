@@ -138,6 +138,15 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
                 f"This Moonraker instance cannot update {self._component}"
             )
 
+        # Moonraker reports refusals in-band too ("Update Refused: Klippy is
+        # printing"), which would otherwise pass for a successful install.
+        error = result.get("error") if isinstance(result, dict) else None
+        if error is not None:
+            message = error.get("message") if isinstance(error, dict) else error
+            raise HomeAssistantError(
+                f"Moonraker refused to update {self._component}: {message}"
+            )
+
         await self.coordinator.async_request_refresh()
 
     def _handle_coordinator_update(self) -> None:

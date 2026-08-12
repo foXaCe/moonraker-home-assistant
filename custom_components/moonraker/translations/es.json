@@ -236,7 +236,7 @@
         "name": "Apagar el host"
       },
       "machine_update_refresh": {
-        "name": "Actualizar las actualizaciones"
+        "name": "Buscar actualizaciones"
       },
       "reset_totals": {
         "name": "Restablecer los totales"

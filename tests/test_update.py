@@ -259,3 +259,20 @@ def test_is_unsupported_method_ignores_non_dict():
     assert _is_unsupported_method("ok") is False
     assert _is_unsupported_method({"error": "boom"}) is False
     assert _is_unsupported_method({"error": {"code": -32601}}) is True
+
+
+async def test_update_install_surfaces_a_refusal(hass):
+    """A printer refusing the update reports the reason instead of succeeding."""
+    entity = _make_update_entity(hass, "klipper", "v0.11.0", "v0.12.0")
+    refused = {
+        "error": {"code": -32000, "message": "Update Refused: Klippy is printing"}
+    }
+
+    async def _fetch(_method, _query_obj=None, **_kwargs):
+        return refused
+
+    with (
+        patch.object(entity.coordinator, "async_fetch_data", _fetch),
+        pytest.raises(HomeAssistantError, match="Klippy is printing"),
+    ):
+        await entity.async_install(None, False)
