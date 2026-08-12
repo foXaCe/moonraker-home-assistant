@@ -60,7 +60,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 # Special thanks
 
-Special thanks to [Marc-Olivier Arsenault](https://github.com/marcolivierarsenault) who created and maintained this integration for years, and to [Clifford Roche](https://github.com/cmroche) who built [moonraker-api](https://github.com/cmroche/moonraker-api), the connector library used by this integration. 🚀
+This integration is built on other people's work, and it is worth naming them:
+
+- [Marc-Olivier Arsenault](https://github.com/marcolivierarsenault), who created this integration and maintained it for years. This fork exists only because that work existed first.
+- [cashew22](https://github.com/cashew22), by far the largest contributor after the author.
+- [Clifford Roche](https://github.com/cmroche), who built [moonraker-api](https://github.com/cmroche/moonraker-api) — the library this integration talks to your printer through.
+- [Arksine](https://github.com/Arksine) for [Moonraker](https://github.com/Arksine/moonraker) and [Kevin O'Connor](https://github.com/KevinOConnor) for [Klipper](https://github.com/Klipper3d/klipper). None of this exists without them.
+- Every [contributor](https://github.com/marcolivierarsenault/moonraker-home-assistant/graphs/contributors) who sent a fix, a new sensor or a translation over the years.
+- Everyone who opened an issue, tested a pre-release, or chased down a bug nobody else could reproduce. Those reports are what make this integration work on hardware its maintainers will never own. 🚀
+
+# Author
+
+Maintained by [foXaCe](https://github.com/foXaCe).
 
 <!-- Badges links -->
 
