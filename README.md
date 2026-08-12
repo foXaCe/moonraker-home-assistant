@@ -67,7 +67,7 @@ This integration is built on other people's work, and it is worth naming them:
 - [Clifford Roche](https://github.com/cmroche), who built [moonraker-api](https://github.com/cmroche/moonraker-api) — the library this integration talks to your printer through.
 - [Arksine](https://github.com/Arksine) for [Moonraker](https://github.com/Arksine/moonraker) and [Kevin O'Connor](https://github.com/KevinOConnor) for [Klipper](https://github.com/Klipper3d/klipper). None of this exists without them.
 - Every [contributor](https://github.com/marcolivierarsenault/moonraker-home-assistant/graphs/contributors) who sent a fix, a new sensor or a translation over the years.
-- Everyone who opened an issue, tested a pre-release, or reported a bug on a printer nobody else could reproduce it on. Those reports are what makes an integration work on hardware its maintainers will never own. 🚀
+- Everyone who opened an issue, tested a pre-release, or chased down a bug nobody else could reproduce. Those reports are what make this integration work on hardware its maintainers will never own. 🚀
 
 # Author
 
