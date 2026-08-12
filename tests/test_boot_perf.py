@@ -28,7 +28,7 @@ from .const import MOCK_CONFIG
 # Budget for a full setup against the reference printer fixture. Lowering it is
 # always welcome; raising it means setup got slower for every user. One call of
 # the budget is printer.objects.subscribe, which buys push updates afterwards.
-MAX_SETUP_CALLS = 18
+MAX_SETUP_CALLS = 16
 
 # No method should be queried more than this during a single setup.
 MAX_CALLS_PER_METHOD = 5

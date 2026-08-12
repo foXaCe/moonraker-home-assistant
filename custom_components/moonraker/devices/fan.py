@@ -7,7 +7,6 @@ from typing import Any
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.const import UnitOfRatio, REVOLUTIONS_PER_MINUTE
 
-from ..const import METHODS, OBJ
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSensorDescription
 from .labels import fr_name
@@ -33,12 +32,7 @@ async def build_fan_sensors(
         if split_obj[0] in fan_keys or obj == "fan":
             discovery_objects[obj] = ["rpm"]
 
-    discovery_status: dict[str, Any] = {}
-    if discovery_objects:
-        discovery = await coordinator.async_fetch_data(
-            METHODS.PRINTER_OBJECTS_QUERY, {OBJ: discovery_objects}, quiet=True
-        )
-        discovery_status = discovery.get("status", {})
+    discovery_status = await coordinator.async_discover_objects(discovery_objects)
 
     for obj in object_list.get("objects", []):
         split_obj = obj.split()

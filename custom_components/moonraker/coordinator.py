@@ -38,6 +38,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 DISCOVERY_CACHE_TTL = 60.0
+_MISSING = object()
 NOTIFY_STATUS_UPDATE = "notify_status_update"
 
 # Notifications that invalidate data the object subscription does not carry:
@@ -114,8 +115,16 @@ async def _printer_objects_updater(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> dict[str, Any]:
     """Fetch the queried printer objects."""
+    seeded = coordinator.pending_subscription_status
+    if seeded is not None:
+        # printer.objects.subscribe just returned this exact payload; querying it
+        # again milliseconds later would be a wasted round-trip.
+        coordinator.pending_subscription_status = None
+        coordinator._objects_status = seeded.get("status") or {}
+        return seeded
+
     if not coordinator.query_obj[OBJ]:
-        # First refresh of a setup: no platform has subscribed an object yet, so
+        # First refresh of a setup: no platform has registered an object yet, so
         # querying an empty object set would be a wasted round-trip.
         coordinator._objects_status = {}
         return {}
@@ -206,6 +215,9 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._shared_fetches: dict[METHODS, tuple[float, asyncio.Task[Any]]] = {}
         self._subscribed = False
         self._subscription_epoch: int | None = None
+        self.pending_subscription_status: dict[str, Any] | None = None
+        self._discovery_batch: dict[str, Any] = {}
+        self._discovery_batch_task: asyncio.Task[dict[str, Any]] | None = None
         self.discovery_degraded = False
         self._last_print_state: str | None = None
         self._discovery_cache_time: float | None = None
@@ -499,6 +511,9 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         status = (result or {}).get("status")
         if status:
             self._apply_status_update(status)
+            # Hand the payload to the next refresh instead of letting it query
+            # the same objects again.
+            self.pending_subscription_status = cast(dict[str, Any], result)
             # The printer may have moved on since the last refresh; publish the
             # subscription's own snapshot rather than waiting for a change.
             self.async_set_updated_data(dict(self.data or {}))
@@ -542,6 +557,47 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         data["status"] = merged
         self._objects_status = merged
         self.data = data
+
+    async def async_discover_objects(self, objects: dict[str, Any]) -> dict[str, Any]:
+        """Query printer objects for discovery, batching concurrent callers.
+
+        The device builders run concurrently and each needs a handful of objects
+        probed. Merging what they ask for in the same event loop pass turns
+        those into a single request; a caller arriving later simply gets its own.
+        """
+        if not objects:
+            return {}
+
+        for name, fields in objects.items():
+            current = self._discovery_batch.get(name, _MISSING)
+            if current is None:
+                # Already asking for every field of that object.
+                continue
+            if fields is None or current is _MISSING:
+                self._discovery_batch[name] = fields
+            else:
+                self._discovery_batch[name] = list(dict.fromkeys([*current, *fields]))
+
+        if self._discovery_batch_task is None:
+            self._discovery_batch_task = self.hass.async_create_task(
+                self._async_run_discovery_batch()
+            )
+
+        return await self._discovery_batch_task
+
+    async def _async_run_discovery_batch(self) -> dict[str, Any]:
+        """Issue the batched discovery query and return the whole status."""
+        # Give every builder started in this pass a chance to register.
+        await asyncio.sleep(0)
+
+        objects = self._discovery_batch
+        self._discovery_batch = {}
+        self._discovery_batch_task = None
+
+        result = await self.async_fetch_data(
+            METHODS.PRINTER_OBJECTS_QUERY, {OBJ: objects}, quiet=True
+        )
+        return cast(dict[str, Any], (result or {}).get("status") or {})
 
     async def async_fetch_shared(
         self,
