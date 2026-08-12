@@ -529,7 +529,7 @@ async def test_temperature_fan_config_fallbacks(hass):
 
 
 async def test_heater_generic_number_config_fallbacks(hass):
-    """Ensure heater_generic numbers handle config fallbacks."""
+    """A heater is only given a target control when its limits are known."""
 
     class FakeCoordinator:
         """Minimal coordinator stub for testing."""
@@ -610,8 +610,9 @@ async def test_heater_generic_number_config_fallbacks(hass):
 
     await async_setup_temperature_target(coordinator, entry, capture_entities)
 
-    assert len(coordinator.loaded) == 2
-    assert len(added_entities) == 2
+    # Only the heater whose limits are known produces a target control.
+    assert len(coordinator.loaded) == 1
+    assert len(added_entities) == 1
     added_by_name = {
         entity.entity_description.name: entity for entity in added_entities
     }
@@ -624,16 +625,12 @@ async def test_heater_generic_number_config_fallbacks(hass):
         mixed_entity.update_string == "SET_HEATER_TEMPERATURE HEATER=MIXED_CASE TARGET="
     )
 
-    orphan_entity = added_by_name["Cible Orphan Heater"]
-    assert orphan_entity.native_value == 40.0
-    assert orphan_entity.native_max_value is None
-    assert orphan_entity.native_min_value == 0.0
-    assert (
-        orphan_entity.update_string
-        == "SET_HEATER_TEMPERATURE HEATER=orphan_heater TARGET="
-    )
+    # A heater with no configfile.settings entry has no known upper bound, so it
+    # gets no target control at all: Home Assistant requires a numeric max, and
+    # guessing one would let the user ask for a temperature the printer refuses.
+    assert "Cible Orphan Heater" not in added_by_name
     assert coordinator.query_obj["heater_generic MIXED_CASE"] == {"target"}
-    assert coordinator.query_obj["heater_generic orphan_heater"] == {"target"}
+    assert "heater_generic orphan_heater" not in coordinator.query_obj
 
 
 def test_coerce_float_handles_invalid_input():
