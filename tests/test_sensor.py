@@ -211,7 +211,7 @@ def test_idle_timeout_state_blank_returns_none():
 @pytest.mark.parametrize(
     "sensor, value",
     [
-        ("mainsail_machine_update_system", "8 paquet(s) à mettre à jour"),
+        ("mainsail_machine_update_system", "8"),
         ("mainsail_version_crownest", "v4.0.4-6 > v4.1.1-1"),
         ("mainsail_version_mainsail", "v2.8.0"),
     ],

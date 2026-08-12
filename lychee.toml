@@ -31,8 +31,9 @@ exclude = [
     "https://example\\.com.*",
     "http://example\\.com.*",
     # release-please writes the compare link for the version being released, so
-    # the tag only exists once that PR is merged. It is a 404 until then.
-    "https://github\\.com/foXaCe/moonraker-home-assistant/compare/.*",
+    # the tag only exists once that PR is merged. It is a 404 until then. Kept
+    # narrow so ordinary broken compare links are still caught.
+    "https://github\\.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-[0-9]+\\.[0-9]+\\.[0-9]+\\.\\.\\.moonraker-home-assistant-[0-9]+\\.[0-9]+\\.[0-9]+$",
 ]
 
 # Check external links only

@@ -604,11 +604,15 @@ async def async_setup_machine_update_sensors(
                 MoonrakerSensorDescription(
                     key="machine_update_system",
                     translation_key="machine_update_system",
-                    value_fn=lambda sensor: (
-                        f"{sensor.coordinator.data['machine_update']['version_info']['system']['package_count']} paquet(s) à mettre à jour"
-                    ),
+                    # A count, not a sentence: a sensor state is a value, and
+                    # only entity names go through the translations.
+                    value_fn=lambda sensor: sensor.coordinator.data["machine_update"][
+                        "version_info"
+                    ]["system"]["package_count"],
                     subscriptions=[],
                     icon="mdi:update",
+                    state_class=SensorStateClass.MEASUREMENT,
+                    suggested_display_precision=0,
                     entity_registry_enabled_default=False,
                     entity_category=EntityCategory.DIAGNOSTIC,
                 )
