@@ -113,8 +113,12 @@ class MoonrakerCamera(MjpegCamera):
     ) -> None:
         """Initialize as a subclass of MjpegCamera."""
 
+        # Naming the device here rather than relying on whichever platform
+        # happens to create it first: without a name, this entity's id depends
+        # on setup order.
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, config_entry.entry_id)}
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=coordinator.api_device_name,
         )
         if (
             config_entry.options.get(CONF_OPTION_CAMERA_PORT) is not None
@@ -156,7 +160,8 @@ class PreviewCamera(Camera):
 
         super().__init__()
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, config_entry.entry_id)}
+            identifiers={(DOMAIN, config_entry.entry_id)},
+            name=coordinator.api_device_name,
         )
         self.url = config_entry.data.get(CONF_URL)
         self.coordinator = coordinator
