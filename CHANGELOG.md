@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.15.0](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.14.0...moonraker-home-assistant-1.15.0) (2026-08-12)
+
+
+### Features
+
+* offline-tolerant setup, french entity names, camera icons ([#16](https://github.com/foXaCe/moonraker-home-assistant/issues/16)) ([4cc7c55](https://github.com/foXaCe/moonraker-home-assistant/commit/4cc7c5579bbb394e0e25aa75b3e78302bec4f0d1))
+* push updates, faster setup, and correctness fixes ([#17](https://github.com/foXaCe/moonraker-home-assistant/issues/17)) ([a782bca](https://github.com/foXaCe/moonraker-home-assistant/commit/a782bca71b706244fb7de09902923e90dd06e9e1))
+* translate remaining static entities and add missing icons ([#14](https://github.com/foXaCe/moonraker-home-assistant/issues/14)) ([4777a9a](https://github.com/foXaCe/moonraker-home-assistant/commit/4777a9a8206e76889f40f5a1d0d9b88bc3407072))
+
 ## [1.14.0](https://github.com/foXaCe/moonraker-home-assistant/releases) (2026-08-11)
 
 ### Features
