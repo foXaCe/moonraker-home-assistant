@@ -2,21 +2,18 @@
 
 ## [1.16.0](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.15.0...moonraker-home-assistant-1.16.0) (2026-08-12)
 
-
 ### Features
 
-* **sensor:** per-extruder filament information ([#23](https://github.com/foXaCe/moonraker-home-assistant/issues/23)) ([a317ce1](https://github.com/foXaCe/moonraker-home-assistant/commit/a317ce1e2962a260cce0e3b7e2a25fa9b5c02073))
-
+- **sensor:** per-extruder filament information ([#23](https://github.com/foXaCe/moonraker-home-assistant/issues/23)) ([a317ce1](https://github.com/foXaCe/moonraker-home-assistant/commit/a317ce1e2962a260cce0e3b7e2a25fa9b5c02073))
 
 ### Bug Fixes
 
-* **number:** no target control for a heater with unknown limits ([#22](https://github.com/foXaCe/moonraker-home-assistant/issues/22)) ([827e480](https://github.com/foXaCe/moonraker-home-assistant/commit/827e4800e4d3a95af422d97e34d0e9a7c7cf82f7))
-
+- **number:** no target control for a heater with unknown limits ([#22](https://github.com/foXaCe/moonraker-home-assistant/issues/22)) ([827e480](https://github.com/foXaCe/moonraker-home-assistant/commit/827e4800e4d3a95af422d97e34d0e9a7c7cf82f7))
 
 ### Performance Improvements
 
-* cut two more setup round-trips ([#18](https://github.com/foXaCe/moonraker-home-assistant/issues/18)) ([5ba6f8a](https://github.com/foXaCe/moonraker-home-assistant/commit/5ba6f8a2646ec583ff210663fe115a406a822a6e))
-* stop rediscovering the printer at every start ([#21](https://github.com/foXaCe/moonraker-home-assistant/issues/21)) ([4e4a1a9](https://github.com/foXaCe/moonraker-home-assistant/commit/4e4a1a9f1762f454a9c96a134a61ac30bd7e5f3b))
+- cut two more setup round-trips ([#18](https://github.com/foXaCe/moonraker-home-assistant/issues/18)) ([5ba6f8a](https://github.com/foXaCe/moonraker-home-assistant/commit/5ba6f8a2646ec583ff210663fe115a406a822a6e))
+- stop rediscovering the printer at every start ([#21](https://github.com/foXaCe/moonraker-home-assistant/issues/21)) ([4e4a1a9](https://github.com/foXaCe/moonraker-home-assistant/commit/4e4a1a9f1762f454a9c96a134a61ac30bd7e5f3b))
 
 ## [1.15.0](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.14.0...moonraker-home-assistant-1.15.0) (2026-08-12)
 
