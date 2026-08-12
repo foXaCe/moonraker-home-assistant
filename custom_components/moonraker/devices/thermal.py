@@ -350,6 +350,14 @@ async def build_temperature_target_numbers(
             max_temp = settings.get("max_temp")
             min_temp = settings.get("min_temp")
 
+            if max_temp is None:
+                # Without an upper bound there is nothing safe to offer: Home
+                # Assistant needs a numeric max, and guessing one for a heater
+                # would let the user ask for a temperature the printer refuses.
+                # Seen on printers that list a heater with no matching
+                # configfile.settings entry.
+                continue
+
             desc = MoonrakerNumberSensorDescription(
                 key=f"{obj.replace(' ', '_')}_target_number",
                 sensor_name=obj,
@@ -359,7 +367,7 @@ async def build_temperature_target_numbers(
                 icon="mdi:radiator",
                 unit=UnitOfTemperature.CELSIUS,
                 update_code=f"SET_HEATER_TEMPERATURE HEATER={heater_name or 'heater_generic'} TARGET=",
-                max_value=float(max_temp) if max_temp is not None else None,
+                max_value=float(max_temp),
                 min_value=float(min_temp) if min_temp is not None else 0.0,
                 device_class=NumberDeviceClass.TEMPERATURE,
             )
