@@ -342,3 +342,30 @@ async def test_an_unreachable_probe_keeps_the_snapshot(hass, get_default_api_res
     assert await async_load_snapshot(hass, "probe-uuid") == SNAPSHOT
 
     await hass.config_entries.async_unload(config_entry.entry_id)
+
+
+async def test_incomplete_discovery_is_not_stored(hass, get_default_api_response):
+    """A snapshot must never freeze a printer that answered only partly."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="partial", unique_id="partial-uuid"
+    )
+    config_entry.add_to_hass(hass)
+
+    real_check = None
+
+    async def _degrade_then_check(hass_arg, entry, coordinator, cached):
+        coordinator.discovery_degraded = True
+        return await real_check(hass_arg, entry, coordinator, cached)
+
+    import custom_components.moonraker as integration
+
+    real_check = integration._async_check_discovery_snapshot
+    with patch.object(
+        integration, "_async_check_discovery_snapshot", _degrade_then_check
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert await async_load_snapshot(hass, "partial-uuid") is None
+
+    await hass.config_entries.async_unload(config_entry.entry_id)

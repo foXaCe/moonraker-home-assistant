@@ -5,8 +5,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from functools import partial
 from typing import Any, cast
 
 import async_timeout
@@ -18,8 +16,6 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.entity_platform import async_get_platforms
-from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.typing import ConfigType
 from moonraker_api import ClientNotAuthenticatedError
 
@@ -51,10 +47,6 @@ from .coordinator import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-# Entities are added asynchronously; the registry is only worth comparing to
-# them once everything has settled.
-STALE_ENTITY_SCAN_DELAY = timedelta(minutes=1)
 
 
 @dataclass
@@ -255,18 +247,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_refresh()
 
     if connected:
-        # async_add_entities schedules the entities rather than adding them
-        # synchronously, so the registry is only comparable to what this setup
-        # created once the loop has drained. Scanning too early would delete
-        # perfectly live entities.
-        entry.async_on_unload(
-            async_call_later(
-                hass,
-                STALE_ENTITY_SCAN_DELAY,
-                partial(_async_remove_stale_entities, hass, entry),
-            )
-        )
-
         entry.async_create_background_task(
             hass,
             _async_check_discovery_snapshot(hass, entry, coordinator, snapshot),
@@ -301,6 +281,12 @@ async def _async_check_discovery_snapshot(
     nothing to re-probe: the result is simply stored for next time.
     """
     cache_key = entry.unique_id or entry.entry_id
+
+    if coordinator.discovery_degraded:
+        # Something the printer normally answers did not come back. Storing that
+        # would cache a printer that looks smaller than it is.
+        _LOGGER.debug("Discovery was incomplete; leaving the snapshot alone")
+        return
 
     if cached is None:
         fresh = coordinator.take_snapshot()
@@ -377,64 +363,6 @@ async def _async_probe_printer(
         discovery_status=status,
         discovery_objects=probed,
     )
-
-
-@callback
-def _async_remove_stale_entities(
-    hass: HomeAssistant, entry: ConfigEntry, _now: datetime | None = None
-) -> None:
-    """Drop registry entries the printer no longer exposes.
-
-    A printer object that disappears (a webcam removed, Spoolman uninstalled, a
-    fan that stopped reporting RPM) leaves an entity behind that Home Assistant
-    keeps showing as unavailable forever. Anything still in the registry but not
-    among the entities this setup just created is one of those.
-
-    Only runs when the printer answered during setup: an unreachable printer
-    exposes nothing and must never be a reason to delete an entity. Disabled
-    entities are never instantiated, so they are skipped as well.
-    """
-    data: MoonrakerData | None = getattr(entry, "runtime_data", None)
-    if data is None:
-        return
-
-    coordinator = data.coordinator
-    if coordinator.discovery_degraded or coordinator.objects_list is None:
-        # An endpoint that failed produces no entity, which is indistinguishable
-        # from one the printer no longer exposes. Removing anything here would
-        # delete entities over a transient error.
-        _LOGGER.debug("Skipping stale entity scan: discovery was incomplete")
-        return
-
-    live_unique_ids = {
-        entity.unique_id
-        for platform in async_get_platforms(hass, DOMAIN)
-        if platform.config_entry is not None
-        and platform.config_entry.entry_id == entry.entry_id
-        for entity in platform.entities.values()
-        if entity.unique_id is not None
-    }
-
-    if not live_unique_ids:
-        # Nothing was created at all; treat it as a failed setup rather than as
-        # a printer that exposes nothing.
-        return
-
-    entity_registry = er.async_get(hass)
-
-    for registry_entry in er.async_entries_for_config_entry(
-        entity_registry, entry.entry_id
-    ):
-        if registry_entry.disabled_by is not None:
-            continue
-        if registry_entry.unique_id in live_unique_ids:
-            continue
-
-        _LOGGER.info(
-            "Removing %s: the printer no longer exposes it",
-            registry_entry.entity_id,
-        )
-        entity_registry.async_remove(registry_entry.entity_id)
 
 
 @callback
