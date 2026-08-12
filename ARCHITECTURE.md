@@ -109,16 +109,20 @@ round-trips, so the call count is what the integration optimises for:
   `devices/` builders rather than being re-queried per platform;
 - independent discovery calls run concurrently (`sensor.py` setup groups, the
   thermal/fan/mcu builders, the two discovery-cache queries);
-- a single refresh runs after all platforms subscribed their objects — no
+- a single refresh runs after all platforms registered their objects — no
   platform triggers its own, and the first refresh skips the printer object
-  query while no object is subscribed yet.
+  query while no object is registered yet;
+- the subscription happens before that refresh, which reuses its reply instead
+  of querying the same objects again;
+- concurrent discovery probes are merged into one `printer.objects.query` by
+  `coordinator.async_discover_objects()`.
 
 `tests/test_boot_perf.py` enforces the budget (`MAX_SETUP_CALLS`); run it with
 `-s` to print the full per-method profile.
 
 ## Quality gates
 
-- `scripts/test_strict` — 343 tests, 100 % statement coverage.
+- `scripts/test_strict` — 358 tests, 100 % statement coverage.
 - `ruff check` / `ruff format` — clean.
 - `mypy --strict custom_components/moonraker/` — clean.
 - `hassfest` — clean (config-entry-only `CONFIG_SCHEMA`).

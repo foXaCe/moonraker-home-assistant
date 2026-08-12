@@ -13,7 +13,6 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 
-from ..const import METHODS, OBJ
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSensorDescription
 from .labels import fr_name
@@ -75,12 +74,7 @@ async def build_temperature_sensors(
         elif split_obj[0] == "hall_filament_width_sensor":
             discovery_objects[obj] = None
 
-    discovery_status: dict[str, Any] = {}
-    if discovery_objects:
-        discovery = await coordinator.async_fetch_data(
-            METHODS.PRINTER_OBJECTS_QUERY, {OBJ: discovery_objects}, quiet=True
-        )
-        discovery_status = discovery.get("status", {})
+    discovery_status = await coordinator.async_discover_objects(discovery_objects)
 
     for obj in object_list.get("objects", []):
         split_obj = obj.split()

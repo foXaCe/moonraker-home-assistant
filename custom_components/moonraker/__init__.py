@@ -193,17 +193,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # A single refresh after all platforms subscribed their printer objects:
+    if connected:
+        # Every platform has registered its objects by now, so this is the point
+        # where the whole set can be pushed by Moonraker instead of polled. Done
+        # before the refresh: the subscription reply carries the same status the
+        # refresh would have queried, which the refresh then reuses.
+        await coordinator.async_subscribe_objects()
+
+    # A single refresh after all platforms registered their printer objects:
     # populating the initial entity values with one API cycle instead of one
     # refresh per platform (each platform refresh would re-query the full object
     # set and slow setup down on real printers).
     await coordinator.async_refresh()
 
     if connected:
-        # Every platform has subscribed its objects by now, so this is the point
-        # where the whole set can be pushed by Moonraker instead of polled.
-        await coordinator.async_subscribe_objects()
-
         # async_add_entities schedules the entities rather than adding them
         # synchronously, so the registry is only comparable to what this setup
         # created once the loop has drained. Scanning too early would delete
