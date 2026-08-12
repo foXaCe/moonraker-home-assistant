@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import partial
-from typing import Any
+from typing import Any, cast
 
 import async_timeout
 from homeassistant.config_entries import ConfigEntry
@@ -110,6 +110,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     connected = False
     printer_info: dict[str, Any] | None = None
+    objects_list: Any = None
+    config_query: Any = None
     api_device_name = entry.title or DOMAIN
     try:
         if not await _async_is_tcp_reachable(url, port):
@@ -128,10 +130,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         else:
             async with async_timeout.timeout(TIMEOUT):
                 await client.start()
-                printer_info = await client.client.call_method(
-                    METHODS.PRINTER_INFO.value
+
+                # The identity calls and the discovery cache are independent, so
+                # they share one round-trip window instead of four. Discovery is
+                # by far the slowest of the four on a real printer, and this
+                # hides the others behind it.
+                results = await asyncio.gather(
+                    client.client.call_method(METHODS.PRINTER_INFO.value),
+                    client.client.call_method(METHODS.SERVER_INFO.value),
+                    client.client.call_method(METHODS.PRINTER_OBJECTS_LIST.value),
+                    client.client.call_method(
+                        METHODS.PRINTER_OBJECTS_QUERY.value,
+                        objects={"configfile": ["settings"]},
+                    ),
+                    return_exceptions=True,
                 )
-                server_info = await client.client.call_method(METHODS.SERVER_INFO.value)
+                # Identity is required; discovery is not. A failed discovery
+                # simply leaves nothing to seed, and the refresh below retries
+                # it — and fails setup properly if the printer really is broken.
+                for result in results[:2]:
+                    if isinstance(result, BaseException):
+                        raise result
+
+                printer_info, server_info = cast(
+                    tuple[dict[str, Any], dict[str, Any]], tuple(results[:2])
+                )
+                objects_list, config_query = (
+                    None if isinstance(value, BaseException) else value
+                    for value in results[2:]
+                )
                 connected = True
                 _LOGGER.debug("printer.info: %s", printer_info)
 
@@ -179,6 +206,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         api_device_name=api_device_name,
         printer_info=printer_info,
     )
+    coordinator.seed_discovery(objects_list, config_query)
 
     await coordinator.async_refresh()
 

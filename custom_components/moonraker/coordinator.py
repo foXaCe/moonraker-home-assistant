@@ -285,6 +285,25 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._subscribed = False
         await self.async_subscribe_objects()
 
+    def seed_discovery(self, objects_list: Any, config_query: Any) -> None:
+        """Adopt the discovery data setup already fetched.
+
+        Setup reads the object list and the config alongside the identity calls,
+        so the first refresh has nothing left to ask for.
+        """
+        objects_ok = isinstance(objects_list, dict) and "objects" in objects_list
+        if objects_ok:
+            self.objects_list = objects_list
+
+        config_ok = isinstance(config_query, dict) and "error" not in config_query
+        if config_ok:
+            self.configfile_settings = (
+                config_query.get("status", {}).get("configfile", {}).get("settings", {})
+            )
+
+        if objects_ok and config_ok:
+            self._discovery_cache_time = time.monotonic()
+
     async def _refresh_discovery_cache(self) -> None:
         """Refresh the cached objects list and configfile settings.
 
