@@ -21,6 +21,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from . import helpers
 from .api import MoonrakerApiClient
 from .api.exceptions import ApiAuthError, ApiConnectionError, MoonrakerApiError
+from .discovery_cache import PrinterSnapshot
 from .repairs import create_invalid_api_key_issue
 from .const import (
     CONF_OPTION_POLLING_RATE,
@@ -216,6 +217,9 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._subscribed = False
         self._subscription_epoch: int | None = None
         self.pending_subscription_status: dict[str, Any] | None = None
+        self.cached_discovery_status: dict[str, Any] | None = None
+        self.probed_discovery_status: dict[str, Any] = {}
+        self.probed_discovery_objects: dict[str, Any] = {}
         self._discovery_batch: dict[str, Any] = {}
         self._discovery_batch_task: asyncio.Task[dict[str, Any]] | None = None
         self.discovery_degraded = False
@@ -284,6 +288,24 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         _LOGGER.debug("Websocket reconnected; subscribing to printer objects again")
         self._subscribed = False
         await self.async_subscribe_objects()
+
+    def seed_from_snapshot(self, snapshot: PrinterSnapshot) -> None:
+        """Adopt a stored snapshot so setup needs no discovery at all."""
+        self.objects_list = snapshot.objects_list
+        self.configfile_settings = snapshot.configfile_settings
+        self.cached_discovery_status = snapshot.discovery_status
+        self._discovery_cache_time = time.monotonic()
+
+    def take_snapshot(self) -> PrinterSnapshot | None:
+        """Return what this coordinator discovered, if discovery succeeded."""
+        if self.objects_list is None or self.configfile_settings is None:
+            return None
+        return PrinterSnapshot(
+            objects_list=self.objects_list,
+            configfile_settings=self.configfile_settings,
+            discovery_status=dict(self.probed_discovery_status),
+            discovery_objects=dict(self.probed_discovery_objects),
+        )
 
     def seed_discovery(self, objects_list: Any, config_query: Any) -> None:
         """Adopt the discovery data setup already fetched.
@@ -587,6 +609,15 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not objects:
             return {}
 
+        if self.cached_discovery_status is not None:
+            # Replayed from the stored snapshot; the real probe runs after setup
+            # and reloads the entry if the printer turns out to have changed.
+            return {
+                name: values
+                for name, values in self.cached_discovery_status.items()
+                if name in objects
+            }
+
         for name, fields in objects.items():
             current = self._discovery_batch.get(name, _MISSING)
             if current is None:
@@ -612,11 +643,14 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         objects = self._discovery_batch
         self._discovery_batch = {}
         self._discovery_batch_task = None
+        self.probed_discovery_objects.update(objects)
 
         result = await self.async_fetch_data(
             METHODS.PRINTER_OBJECTS_QUERY, {OBJ: objects}, quiet=True
         )
-        return cast(dict[str, Any], (result or {}).get("status") or {})
+        status = cast(dict[str, Any], (result or {}).get("status") or {})
+        self.probed_discovery_status.update(status)
+        return status
 
     async def async_fetch_shared(
         self,

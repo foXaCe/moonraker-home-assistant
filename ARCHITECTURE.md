@@ -120,9 +120,19 @@ round-trips, so the call count is what the integration optimises for:
 `tests/test_boot_perf.py` enforces the budget (`MAX_SETUP_CALLS`); run it with
 `-s` to print the full per-method profile.
 
+Beyond the first start, discovery does not happen during setup at all.
+`discovery_cache.py` stores what the printer exposed — its object list, its
+Klipper config and the probe of its thermal and fan objects — and setup replays
+that snapshot. The real discovery runs afterwards, and the entry is reloaded
+only if the printer turned out to have changed. The comparison looks at shape
+only: which objects exist, which config sections exist, and whether the fields
+discovery asked about report a value. Measurements are ignored, and so is
+anything Moonraker returns because of the active subscription rather than
+because it was asked for.
+
 ## Quality gates
 
-- `scripts/test_strict` — 358 tests, 100 % statement coverage.
+- `scripts/test_strict` — 385 tests, 100 % statement coverage.
 - `ruff check` / `ruff format` — clean.
 - `mypy --strict custom_components/moonraker/` — clean.
 - `hassfest` — clean (config-entry-only `CONFIG_SCHEMA`).

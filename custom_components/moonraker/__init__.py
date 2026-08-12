@@ -32,9 +32,16 @@ from .const import (
     DOMAIN,
     HOSTNAME,
     METHODS,
+    OBJ,
     PLATFORMS,
     SERVER_INFO_UUID,
     TIMEOUT,
+)
+from .discovery_cache import (
+    PrinterSnapshot,
+    async_load_snapshot,
+    async_remove_snapshot,
+    async_save_snapshot,
 )
 from .coordinator import (
     MoonrakerDataUpdateCoordinator,
@@ -108,6 +115,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         tls=tls,
     )
 
+    cache_key = entry.unique_id or entry.entry_id
+    snapshot = await async_load_snapshot(hass, cache_key)
+
     connected = False
     printer_info: dict[str, Any] | None = None
     objects_list: Any = None
@@ -135,16 +145,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # they share one round-trip window instead of four. Discovery is
                 # by far the slowest of the four on a real printer, and this
                 # hides the others behind it.
-                results = await asyncio.gather(
+                calls = [
                     client.client.call_method(METHODS.PRINTER_INFO.value),
                     client.client.call_method(METHODS.SERVER_INFO.value),
-                    client.client.call_method(METHODS.PRINTER_OBJECTS_LIST.value),
-                    client.client.call_method(
-                        METHODS.PRINTER_OBJECTS_QUERY.value,
-                        objects={"configfile": ["settings"]},
-                    ),
-                    return_exceptions=True,
-                )
+                ]
+                if snapshot is None:
+                    # Nothing stored for this printer yet, so discovery has to
+                    # happen now. Otherwise it runs after setup instead.
+                    calls += [
+                        client.client.call_method(METHODS.PRINTER_OBJECTS_LIST.value),
+                        client.client.call_method(
+                            METHODS.PRINTER_OBJECTS_QUERY.value,
+                            objects={"configfile": ["settings"]},
+                        ),
+                    ]
+
+                results = await asyncio.gather(*calls, return_exceptions=True)
                 # Identity is required; discovery is not. A failed discovery
                 # simply leaves nothing to seed, and the refresh below retries
                 # it — and fails setup properly if the printer really is broken.
@@ -155,10 +171,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 printer_info, server_info = cast(
                     tuple[dict[str, Any], dict[str, Any]], tuple(results[:2])
                 )
-                objects_list, config_query = (
-                    None if isinstance(value, BaseException) else value
-                    for value in results[2:]
-                )
+                if len(results) == 4:
+                    objects_list, config_query = (
+                        None if isinstance(value, BaseException) else value
+                        for value in results[2:]
+                    )
                 connected = True
                 _LOGGER.debug("printer.info: %s", printer_info)
 
@@ -206,7 +223,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         api_device_name=api_device_name,
         printer_info=printer_info,
     )
-    coordinator.seed_discovery(objects_list, config_query)
+    if snapshot is not None:
+        coordinator.seed_from_snapshot(snapshot)
+    else:
+        coordinator.seed_discovery(objects_list, config_query)
 
     await coordinator.async_refresh()
 
@@ -247,6 +267,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
         )
 
+        entry.async_create_background_task(
+            hass,
+            _async_check_discovery_snapshot(hass, entry, coordinator, snapshot),
+            "moonraker discovery snapshot",
+        )
+
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     async def _stop_client(_event: Event) -> None:
@@ -260,6 +286,97 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_send_gcode_service(hass)
 
     return True
+
+
+async def _async_check_discovery_snapshot(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: MoonrakerDataUpdateCoordinator,
+    cached: PrinterSnapshot | None,
+) -> None:
+    """Confirm the stored snapshot still describes the printer.
+
+    Runs after setup, so a stale snapshot costs a reload rather than a slow
+    start. Without a snapshot, setup just discovered everything and there is
+    nothing to re-probe: the result is simply stored for next time.
+    """
+    cache_key = entry.unique_id or entry.entry_id
+
+    if cached is None:
+        fresh = coordinator.take_snapshot()
+        if fresh is not None:
+            await async_save_snapshot(hass, cache_key, fresh)
+        return
+
+    fresh = await _async_probe_printer(coordinator, cached)
+    if fresh is None:
+        return
+
+    differences = cached.differences(fresh)
+    if not differences:
+        return
+
+    _LOGGER.debug("Printer differs from its snapshot: %s", "; ".join(differences))
+
+    await async_save_snapshot(hass, cache_key, fresh)
+
+    # One reload per Home Assistant run: if the comparison somehow never
+    # settles, the entry must not reload itself forever.
+    reloaded: set[str] = hass.data.setdefault(f"{DOMAIN}_snapshot_reloads", set())
+    if entry.entry_id in reloaded:
+        _LOGGER.debug("Snapshot changed again for %s; not reloading twice", entry.title)
+        return
+    reloaded.add(entry.entry_id)
+
+    _LOGGER.info("Printer changed since last start, reloading %s", entry.title)
+    hass.config_entries.async_schedule_reload(entry.entry_id)
+
+
+async def _async_probe_printer(
+    coordinator: MoonrakerDataUpdateCoordinator,
+    cached: PrinterSnapshot,
+) -> PrinterSnapshot | None:
+    """Ask the printer what it exposes right now."""
+    probed: dict[str, Any] = dict.fromkeys(cached.discovery_status)
+
+    calls: list[Any] = [
+        coordinator.async_fetch_data(METHODS.PRINTER_OBJECTS_LIST, offline_ok=True),
+        coordinator.async_fetch_data(
+            METHODS.PRINTER_OBJECTS_QUERY,
+            {OBJ: {"configfile": ["settings"]}},
+            offline_ok=True,
+        ),
+    ]
+    if probed:
+        calls.append(
+            coordinator.async_fetch_data(
+                METHODS.PRINTER_OBJECTS_QUERY, {OBJ: probed}, offline_ok=True
+            )
+        )
+
+    results = await asyncio.gather(*calls, return_exceptions=True)
+
+    objects_list = results[0]
+    if not isinstance(objects_list, dict) or "objects" not in objects_list:
+        return None
+
+    config_query = results[1]
+    if not isinstance(config_query, dict):
+        return None
+    settings = config_query.get("status", {}).get("configfile", {}).get("settings")
+    if not isinstance(settings, dict):
+        return None
+
+    status: dict[str, Any] = {}
+    if len(results) > 2 and isinstance(results[2], dict):
+        status = results[2].get("status") or {}
+
+    return PrinterSnapshot(
+        objects_list=objects_list,
+        configfile_settings=settings,
+        discovery_status=status,
+        discovery_objects=probed,
+    )
 
 
 @callback
@@ -452,6 +569,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, "send_gcode")
 
     return unloaded
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Drop the stored snapshot when the printer is removed."""
+    await async_remove_snapshot(hass, entry.unique_id or entry.entry_id)
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
