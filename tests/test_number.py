@@ -726,3 +726,101 @@ async def test_pwm_output_pin_named_branch(hass):
     pin = MoonrakerPWMOutputPin(coord, entry, desc)
     assert pin.name == "Output Pin Test Pin"
     assert pin.native_value == 25.0
+
+
+async def test_offline_setup_with_snapshot_creates_numbers(hass):
+    """Numbers still appear when the printer is unreachable at startup.
+
+    Seen in production: with a cached snapshot the platform builds
+    descriptions, but the coordinator never fetched anything, so its data is
+    still None. Reading it during entity construction used to abort the whole
+    number platform with "'NoneType' object has no attribute 'get'".
+    """
+    from unittest.mock import AsyncMock
+
+    from custom_components.moonraker.discovery_cache import (
+        PrinterSnapshot,
+        async_save_snapshot,
+    )
+
+    await async_save_snapshot(
+        hass,
+        "test-uuid",
+        PrinterSnapshot(
+            objects_list={"objects": ["heater_bed", "extruder", "gcode_move"]},
+            configfile_settings={},
+            discovery_status={},
+            discovery_objects={},
+        ),
+    )
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="offline_num"
+    )
+    config_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "moonraker_api.MoonrakerClient.call_method",
+            new_callable=AsyncMock,
+            side_effect=Exception,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    entity_registry = er.async_get(hass)
+    unique_ids = {
+        entity.unique_id
+        for entity in entity_registry.entities.values()
+        if entity.domain == "number" and entity.platform == DOMAIN
+    }
+    assert "test-uuid_heater_bed_target" in unique_ids
+    assert "test-uuid_extruder_target" in unique_ids
+
+
+class _NoDataCoordinator:
+    """Coordinator that never fetched anything, as after an offline startup."""
+
+    def __init__(self):
+        self.data = None
+        self.api_device_name = "Mainsail"
+
+    def async_add_listener(self, _cb):
+        return lambda: None
+
+
+async def test_number_value_without_coordinator_data():
+    """A number reads as zero instead of raising when no data was fetched."""
+    desc = MoonrakerNumberSensorDescription(
+        key="heater_bed_target",
+        sensor_name="heater_bed",
+        name="Bed Target",
+        status_key="target",
+        subscriptions=[("heater_bed", "target")],
+    )
+    number = MoonrakerNumber(
+        _NoDataCoordinator(), SimpleNamespace(unique_id="test"), desc
+    )
+    assert number.native_value == 0.0
+
+
+async def test_pwm_output_pin_value_without_coordinator_data():
+    """A PWM output pin reads as zero instead of raising when no data exists."""
+    from custom_components.moonraker.number import MoonrakerPWMOutputPin
+
+    desc = MoonrakerNumberSensorDescription(
+        key="output_pin pwm",
+        sensor_name="output_pin pwm",
+        name="Output Pin Pwm",
+        subscriptions=[("output_pin pwm", "value")],
+    )
+    pin = MoonrakerPWMOutputPin(
+        _NoDataCoordinator(), SimpleNamespace(unique_id="test"), desc
+    )
+    assert pin.native_value == 0.0
