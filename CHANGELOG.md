@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.2](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.1...moonraker-home-assistant-1.16.2) (2026-08-14)
+
+
+### Bug Fixes
+
+* keep number entities when the printer is offline at startup ([#28](https://github.com/foXaCe/moonraker-home-assistant/issues/28)) ([8d98eac](https://github.com/foXaCe/moonraker-home-assistant/commit/8d98eac62af3723f4b8e1ee86d32d980d0726b82))
+
 ## [1.16.1](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.0...moonraker-home-assistant-1.16.1) (2026-08-12)
 
 ### Bug Fixes
