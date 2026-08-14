@@ -168,7 +168,9 @@ class MoonrakerPWMOutputPin(BaseMoonrakerEntity, NumberEntity):
 
     def _extract_native_value(self) -> float:
         """Return the current PWM value as percentage."""
-        status = self.coordinator.data.get("status", {})
+        # data is None until a refresh succeeds: entities are still built from
+        # the cached snapshot when the printer is offline at startup.
+        status = (self.coordinator.data or {}).get("status", {})
         obj = status.get(self.sensor_name, {})
         raw_value = obj.get("value") if isinstance(obj, dict) else None
         coerced = _coerce_float(raw_value)
@@ -231,7 +233,8 @@ class MoonrakerNumber(BaseMoonrakerEntity, NumberEntity):
         status_key = self.entity_description.status_key
         if status_key is None:
             return 0.0
-        status = self.coordinator.data.get("status", {})
+        # See MoonrakerPWMOutputPin: data is None until a refresh succeeds.
+        status = (self.coordinator.data or {}).get("status", {})
         obj = status.get(self.sensor_name, {})
         raw_value = obj.get(status_key) if isinstance(obj, dict) else None
         coerced = _coerce_float(raw_value)

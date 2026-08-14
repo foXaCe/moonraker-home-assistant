@@ -117,7 +117,10 @@ class MoonrakerPowerDeviceSwitchSensor(MoonrakerSwitchSensor):
     def is_on(self) -> bool:
         """Return true if the switch is on."""
         current_state = False
-        for device in self.coordinator.data.get("power_devices", {}).get("devices", []):
+        # data is None until a refresh succeeds: entities are still built from
+        # the cached snapshot when the printer is offline at startup.
+        power_devices = (self.coordinator.data or {}).get("power_devices") or {}
+        for device in power_devices.get("devices", []):
             if device["device"] == self.sensor_name:
                 current_state = device["status"] == "on"
         return current_state
@@ -157,7 +160,8 @@ class MoonrakerDigitalOutputPin(MoonrakerSwitchSensor):
     def is_on(self) -> bool:
         """Return true if the switch is on."""
         value = (
-            self.coordinator.data.get("status", {})
+            (self.coordinator.data or {})
+            .get("status", {})
             .get(self.sensor_name, {})
             .get("value")
         )
