@@ -1,0 +1,15 @@
+# Gitleaks configuration — extend the default rules.
+
+title = "moonraker-home-assistant gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlisted values that only appear in test fixtures."
+regexes = [
+    # Historical fake API keys from upstream test fixtures (2023).
+    '''[AD]7ylD3EuPWWxGlssh.*''',
+    # Empty API key in test data/assertions.
+    '''CONF_API_KEY:\s*""''',
+]
