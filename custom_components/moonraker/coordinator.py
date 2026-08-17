@@ -42,6 +42,12 @@ DISCOVERY_CACHE_TTL = 60.0
 _MISSING = object()
 NOTIFY_STATUS_UPDATE = "notify_status_update"
 
+# A dropped websocket is only re-established after the endpoint answers a TCP
+# probe, which on a turned-off printer burns a full connect timeout (~seconds).
+# During setup and the first refresh the result cannot change within a few
+# seconds, so it is cached and the probe is only repeated after this window.
+TCP_REACHABLE_CACHE_TTL = 30.0
+
 # Notifications that invalidate data the object subscription does not carry:
 # printer.info state, power devices, history, job queue and update status. They
 # trigger a refresh so a long polling interval costs no freshness.
@@ -194,6 +200,7 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         config_entry: ConfigEntry,
         api_device_name: str,
         printer_info: dict[str, Any] | None = None,
+        tcp_reachable: bool | None = None,
     ) -> None:
         """Initialize the coordinator."""
         self.moonraker = client
@@ -207,6 +214,15 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.hass = hass
         self.config_entry = config_entry
         self.api_device_name = api_device_name
+        if tcp_reachable is False:
+            # Setup just probed the endpoint and found it unreachable; reuse
+            # that outcome for the first refresh instead of burning another
+            # connect timeout right away. A reachable result is not seeded: the
+            # client is connected then, so no probe is needed until a real
+            # disconnect, after which probing again is the honest answer.
+            self._tcp_reachable_cache = (time.monotonic(), False)
+        else:
+            self._tcp_reachable_cache = None
         self.query_obj: dict[str, dict[str, Any]] = {OBJ: {}}
         self.objects_list: dict[str, Any] | None = None
         self.configfile_settings: dict[str, Any] | None = None
@@ -225,6 +241,7 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.discovery_degraded = False
         self._last_print_state: str | None = None
         self._discovery_cache_time: float | None = None
+        self._unreachable_warned = False
         self._updater_times: dict[Updater, float] = {}
         self._default_interval = timedelta(
             seconds=config_entry.options.get(CONF_OPTION_POLLING_RATE, 30)
@@ -740,27 +757,61 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _ensure_connected(self) -> None:
         """Ensure the Moonraker websocket is connected, restarting it if needed."""
-        if not self.moonraker.is_connected:
-            entry = self.config_entry
-            assert entry is not None
-            if not await _async_is_tcp_reachable(
-                str(entry.data.get(CONF_URL)),
+        if self.moonraker.is_connected:
+            self._unreachable_warned = False
+            return
+        entry = self.config_entry
+        assert entry is not None
+        if not await self._async_is_tcp_reachable():
+            self._log_unreachable(
+                "connection to moonraker down; %s:%s is unreachable",
+                entry.data.get(CONF_URL),
                 _entry_port(entry),
-            ):
-                self._log_unreachable(
-                    "connection to moonraker down; %s:%s is unreachable",
-                    entry.data.get(CONF_URL),
-                    _entry_port(entry),
-                )
-                raise UpdateFailed()
-            _LOGGER.warning("connection to moonraker down, restarting")
-            try:
-                await self.moonraker.start()
-            except ApiConnectionError as exception:
-                raise UpdateFailed() from exception
+            )
+            raise UpdateFailed()
+        self._unreachable_warned = False
+        _LOGGER.warning("connection to moonraker down, restarting")
+        try:
+            await self.moonraker.start()
+        except ApiConnectionError as exception:
+            raise UpdateFailed() from exception
+
+    async def _async_is_tcp_reachable(self) -> bool:
+        """Return whether Moonraker answers a TCP probe, caching the failure.
+
+        A turned-off printer costs a full connect timeout per probe, so a
+        negative outcome is cached and reused for a short window instead of
+        blocking every refresh again. A positive outcome is never cached: the
+        websocket connects right after it, and once that drops, probing again
+        is the honest answer to whether the printer is back.
+        """
+        now = time.monotonic()
+        if self._tcp_reachable_cache is not None:
+            cached_at, _reachable = self._tcp_reachable_cache
+            if now - cached_at < TCP_REACHABLE_CACHE_TTL:
+                return False
+        entry = self.config_entry
+        assert entry is not None
+        reachable = await _async_is_tcp_reachable(
+            str(entry.data.get(CONF_URL)),
+            _entry_port(entry),
+        )
+        if not reachable:
+            self._tcp_reachable_cache = (now, False)
+        return reachable
 
     def _log_unreachable(self, message: str, *args: Any) -> None:
-        """Log unreachable-device messages at the configured verbosity."""
+        """Log unreachable-device messages at the configured verbosity.
+
+        The message is emitted once per offline period, not on every refresh:
+        a printer that stays off for hours would otherwise fill the log with
+        one warning per polling interval. The next successful connection resets
+        the flag so a later outage is reported again.
+        """
+        if self._unreachable_warned:
+            _LOGGER.debug(message, *args)
+            return
+        self._unreachable_warned = True
         entry = self.config_entry
         assert entry is not None
         if entry.options.get(CONF_OPTION_QUIET_UNREACHABLE, False):

@@ -115,6 +115,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     objects_list: Any = None
     config_query: Any = None
     api_device_name = entry.title or DOMAIN
+    tcp_reachable = False
     try:
         if not await _async_is_tcp_reachable(url, port):
             _log_unreachable(
@@ -130,6 +131,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 entry.title,
             )
         else:
+            tcp_reachable = True
             async with async_timeout.timeout(TIMEOUT):
                 await client.start()
 
@@ -214,6 +216,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         config_entry=entry,
         api_device_name=api_device_name,
         printer_info=printer_info,
+        tcp_reachable=tcp_reachable,
     )
     if snapshot is not None:
         coordinator.seed_from_snapshot(snapshot)

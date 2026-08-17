@@ -1,6 +1,7 @@
 """Test moonraker setup process."""
 
 import logging
+import time
 from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -32,6 +33,7 @@ from custom_components.moonraker.api.exceptions import (
     MoonrakerApiError,
 )
 from custom_components.moonraker.coordinator import (
+    TCP_REACHABLE_CACHE_TTL,
     MoonrakerDataUpdateCoordinator,
     _async_is_tcp_reachable,
 )
@@ -1389,6 +1391,163 @@ async def test_ensure_connected_quiet_unreachable_logs_debug(hass, caplog):
         and "connection to moonraker down" in record.message
         for record in caplog.records
     )
+
+
+async def test_ensure_connected_unreachable_warns_once_per_offline_period(hass, caplog):
+    """Repeated unreachable checks do not spam the warning level.
+
+    A printer that stays off across several polling cycles must be reported
+    once, then stay quiet until a connection succeeds again.
+    """
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        unique_id="test-uuid",
+        entry_id="dedup_unreachable",
+    )
+    coordinator = MoonrakerDataUpdateCoordinator(
+        hass,
+        client=_make_api_client(is_connected=False),
+        config_entry=config_entry,
+        api_device_name="printer",
+    )
+
+    with (
+        patch(
+            "custom_components.moonraker.coordinator._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        caplog.at_level(logging.DEBUG),
+    ):
+        for _ in range(3):
+            with pytest.raises(UpdateFailed):
+                await coordinator._ensure_connected()
+
+    warnings = [
+        record
+        for record in caplog.records
+        if record.levelno == logging.WARNING and "is unreachable" in record.message
+    ]
+    assert len(warnings) == 1
+
+
+async def test_ensure_connected_unreachable_warns_again_after_reconnect(hass, caplog):
+    """A successful reconnect resets the flag so the next outage is reported."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        unique_id="test-uuid",
+        entry_id="dedup_reconnect",
+    )
+    coordinator = MoonrakerDataUpdateCoordinator(
+        hass,
+        client=_make_api_client(is_connected=False),
+        config_entry=config_entry,
+        api_device_name="printer",
+    )
+    reachable = AsyncMock(return_value=False)
+
+    with patch(
+        "custom_components.moonraker.coordinator._async_is_tcp_reachable",
+        reachable,
+    ):
+        with pytest.raises(UpdateFailed):
+            await coordinator._ensure_connected()
+        # The cached negative result expires, then the printer is back: TCP
+        # reachable again, the client restarts.
+        with patch(
+            "custom_components.moonraker.coordinator.time.monotonic",
+            return_value=time.monotonic() + TCP_REACHABLE_CACHE_TTL + 1,
+        ):
+            reachable.return_value = True
+            with patch(
+                "custom_components.moonraker.coordinator.MoonrakerApiClient.start",
+                new_callable=AsyncMock,
+            ):
+                await coordinator._ensure_connected()
+        # And it goes down again: a fresh warning is expected.
+        reachable.return_value = False
+        with pytest.raises(UpdateFailed):
+            await coordinator._ensure_connected()
+
+    warnings = [
+        record
+        for record in caplog.records
+        if record.levelno == logging.WARNING and "is unreachable" in record.message
+    ]
+    assert len(warnings) == 2
+
+
+async def test_ensure_connected_caches_unreachable_probe(hass):
+    """A failed TCP probe is not repeated while its result stays cached."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        unique_id="test-uuid",
+        entry_id="tcp_cache",
+    )
+    coordinator = MoonrakerDataUpdateCoordinator(
+        hass,
+        client=_make_api_client(is_connected=False),
+        config_entry=config_entry,
+        api_device_name="printer",
+    )
+    probe = AsyncMock(return_value=False)
+
+    with patch(
+        "custom_components.moonraker.coordinator._async_is_tcp_reachable",
+        probe,
+    ):
+        for _ in range(3):
+            with pytest.raises(UpdateFailed):
+                await coordinator._ensure_connected()
+
+        # The negative outcome is cached, so only the first check really probed.
+        assert probe.await_count == 1
+
+        # Past the cache window the endpoint is probed again.
+        with (
+            patch(
+                "custom_components.moonraker.coordinator.time.monotonic",
+                return_value=time.monotonic() + TCP_REACHABLE_CACHE_TTL + 1,
+            ),
+            pytest.raises(UpdateFailed),
+        ):
+            await coordinator._ensure_connected()
+        assert probe.await_count == 2
+
+
+async def test_ensure_connected_probes_again_after_reachable(hass):
+    """A reachable probe is never cached; the next check probes again."""
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        unique_id="test-uuid",
+        entry_id="tcp_no_cache",
+    )
+    coordinator = MoonrakerDataUpdateCoordinator(
+        hass,
+        client=_make_api_client(is_connected=False),
+        config_entry=config_entry,
+        api_device_name="printer",
+    )
+    probe = AsyncMock(return_value=True)
+
+    with (
+        patch(
+            "custom_components.moonraker.coordinator._async_is_tcp_reachable",
+            probe,
+        ),
+        patch(
+            "custom_components.moonraker.coordinator.MoonrakerApiClient.start",
+            new_callable=AsyncMock,
+        ),
+    ):
+        for _ in range(3):
+            await coordinator._ensure_connected()
+
+    assert probe.await_count == 3
 
 
 async def test_setup_entry_generic_exception_with_unique_id_proceeds(hass, caplog):
