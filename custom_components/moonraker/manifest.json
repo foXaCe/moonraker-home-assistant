@@ -10,6 +10,6 @@
   "issue_tracker": "https://github.com/foXaCe/moonraker-home-assistant/issues",
   "loggers": ["moonraker"],
   "requirements": ["moonraker-api==4.0.0"],
-  "version": "1.16.2",
+  "version": "1.16.3",
   "zeroconf": ["_moonraker._tcp.local."]
 }
