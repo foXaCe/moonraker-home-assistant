@@ -2,10 +2,9 @@
 
 ## [1.16.3](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.2...moonraker-home-assistant-1.16.3) (2026-08-18)
 
-
 ### Bug Fixes
 
-* reduce offline log spam and speed up offline boot ([05a598a](https://github.com/foXaCe/moonraker-home-assistant/commit/05a598a77e9f1da5c6e446ebda1249256380715c))
+- reduce offline log spam and speed up offline boot ([05a598a](https://github.com/foXaCe/moonraker-home-assistant/commit/05a598a77e9f1da5c6e446ebda1249256380715c))
 
 ## [1.16.3](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.2...moonraker-home-assistant-1.16.3) (2026-08-17)
 
