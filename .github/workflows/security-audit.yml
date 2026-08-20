@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v7
       # --no-resolve : la résolution transitive deps.dev est instable (rpc Internal) ;
       # les arbres résolus sont déjà couverts par pip-audit, osv-scanner audite les pins.
-      - uses: google/osv-scanner-action/osv-scanner-action@v2.5.0
+      - uses: google/osv-scanner-action/osv-scanner-action@v2.5.1
         with:
           scan-args: |
             --recursive
