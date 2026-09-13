@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.4](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.3...moonraker-home-assistant-1.16.4) (2026-09-13)
+
+### Bug Fixes
+
+- localize dynamic entity names to the Home Assistant language ([#40](https://github.com/foXaCe/moonraker-home-assistant/issues/40)) ([0f70a2c](https://github.com/foXaCe/moonraker-home-assistant/commit/0f70a2ce62bcd13e6b8bb9623a544dbafb26ed0f))
+
 ## [1.16.3](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.2...moonraker-home-assistant-1.16.3) (2026-08-18)
 
 ### Bug Fixes
