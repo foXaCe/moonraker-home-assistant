@@ -8,13 +8,15 @@ from homeassistant.const import UnitOfRatio
 
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerSensorDescription
-from .labels import fr_name
+from .labels import localized_name
 
 
 async def build_mcu_sensors(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> list[MoonrakerSensorDescription]:
     """Build MCU sensor descriptions from the printer object list."""
+
+    language = coordinator.hass.config.language
 
     sensors: list[MoonrakerSensorDescription] = []
     object_list = coordinator.objects_list or {"objects": []}
@@ -34,7 +36,7 @@ async def build_mcu_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{key}_load",
                 status_key=obj,
-                name=fr_name("load", name),
+                name=localized_name(language, "load", name),
                 value_fn=lambda sensor: (
                     (
                         (
@@ -65,7 +67,7 @@ async def build_mcu_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{key}_awake",
                 status_key=obj,
-                name=fr_name("awake", name),
+                name=localized_name(language, "awake", name),
                 value_fn=lambda sensor: (
                     (
                         sensor.coordinator.data["status"][sensor.status_key][

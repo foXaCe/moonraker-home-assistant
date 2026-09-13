@@ -18,7 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .coordinator import MoonrakerDataUpdateCoordinator
-from .devices.labels import fr_name
+from .devices.labels import localized_filament_width_sensor, localized_name
 from .entity import BaseMoonrakerEntity
 
 
@@ -51,6 +51,8 @@ async def async_setup_optional_binary_sensors(
 ) -> None:
     """Set optional binary sensor platform."""
 
+    language = coordinator.hass.config.language
+
     sensors = []
     object_list = coordinator.objects_list or {"objects": []}
     for obj in object_list.get("objects", []):
@@ -76,7 +78,7 @@ async def async_setup_optional_binary_sensors(
             base_name = (
                 split_obj[1].replace("_", " ").title()
                 if len(split_obj) > 1
-                else "Capteur de largeur de filament"
+                else localized_filament_width_sensor(language)
             )
             sensors.append(
                 MoonrakerBinarySensorDescription(
@@ -85,7 +87,7 @@ async def async_setup_optional_binary_sensors(
                     is_on_fn=lambda sensor: sensor.coordinator.data["status"][
                         sensor.sensor_name
                     ]["is_active"],
-                    name=fr_name("active", base_name),
+                    name=localized_name(language, "active", base_name),
                     subscriptions=[(obj, "is_active")],
                     icon="mdi:motion-sensor",
                 )

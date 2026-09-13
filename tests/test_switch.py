@@ -25,7 +25,7 @@ def bypass_connect_client_fixture():
     [
         ("mainsail_light", "power", "light"),
         ("mainsail_printer", "power", "printer"),
-        ("mainsail_sortie_digital", "pin", "digital"),
+        ("mainsail_output_digital", "pin", "digital"),
     ],
 )
 async def test_switch_turn_on(
@@ -69,7 +69,7 @@ async def test_switch_turn_on(
     [
         ("mainsail_light", "power", "light"),
         ("mainsail_printer", "power", "printer"),
-        ("mainsail_sortie_digital", "pin", "digital"),
+        ("mainsail_output_digital", "pin", "digital"),
     ],
 )
 async def test_switch_turn_off(
