@@ -24,11 +24,11 @@ from custom_components.moonraker.helpers import (
 from .const import MOCK_CONFIG
 
 DEFAULT_VALUES = [
-    ("mainsail_temperature_mcu", "32.43"),
-    ("mainsail_temperature_eddy", "32.43"),
-    ("mainsail_temperature_du_plateau", "60.01"),
-    ("mainsail_temperature_de_l_extrudeuse", "205.02"),
-    ("mainsail_temperature_de_l_extrudeuse_1", "220.01"),
+    ("mainsail_mcu_temperature", "32.43"),
+    ("mainsail_eddy_temperature", "32.43"),
+    ("mainsail_bed_temperature", "60.01"),
+    ("mainsail_extruder_temperature", "205.02"),
+    ("mainsail_extruder1_temperature", "220.01"),
     ("mainsail_progress", "90.7810423766328"),
     ("mainsail_print_speed", "123.46"),
     ("mainsail_printer_state", "ready"),
@@ -43,30 +43,30 @@ DEFAULT_VALUES = [
     ("mainsail_print_duration", "133.575469144767"),
     ("mainsail_filament_used", "5.0"),
     ("mainsail_progress", "90.7810423766328"),
-    ("mainsail_puissance_du_plateau", "26.0537452725334"),
-    ("mainsail_puissance_de_l_extrudeuse", "66.6710806392505"),
-    ("mainsail_rpm_ventilateur", "3000.12321"),
-    ("mainsail_temperature_fan", "32.43"),
-    ("mainsail_temperature_tmc2240_stepper_x", "32.43"),
-    ("mainsail_temperature_bme280", "32.43"),
-    ("mainsail_temperature_htu21d", "32.43"),
-    ("mainsail_humidite_bme280_temp", "26.7836192965663"),
-    ("mainsail_pression_bme280_temp", "988.147871919303"),
-    ("mainsail_gaz_bme280_temp", "36351.7462559177"),
-    ("mainsail_humidite_htu21d_temp", "55.0"),
-    ("mainsail_temperature_aht10", "32.43"),
-    ("mainsail_humidite_aht10_temp", "42.0"),
-    ("mainsail_temperature_heater_box1", "23.74"),
-    ("mainsail_humidite_heater_box1", "26.0"),
-    ("mainsail_temperature_heater_box2", "24.5"),
-    ("mainsail_humidite_heater_box2", "30.0"),
-    ("mainsail_temperature_sht3x", "32.43"),
-    ("mainsail_humidite_sht3x_temp", "43.0"),
-    ("mainsail_temperature_lm75", "32.43"),
-    ("mainsail_vitesse_heater_fan", "51.23"),
-    ("mainsail_vitesse_controller_fan", "51.23"),
-    ("mainsail_rpm_controller_fan", "5000.32123"),
-    ("mainsail_vitesse_nevermore_fan", "12.34"),
+    ("mainsail_bed_power", "26.0537452725334"),
+    ("mainsail_extruder_power", "66.6710806392505"),
+    ("mainsail_fan_rpm", "3000.12321"),
+    ("mainsail_fan_temperature", "32.43"),
+    ("mainsail_tmc2240_stepper_x_temperature", "32.43"),
+    ("mainsail_bme280_temperature", "32.43"),
+    ("mainsail_htu21d_temperature", "32.43"),
+    ("mainsail_bme280_temp_humidity", "26.7836192965663"),
+    ("mainsail_bme280_temp_pressure", "988.147871919303"),
+    ("mainsail_bme280_temp_gas", "36351.7462559177"),
+    ("mainsail_htu21d_temp_humidity", "55.0"),
+    ("mainsail_aht10_temperature", "32.43"),
+    ("mainsail_aht10_temp_humidity", "42.0"),
+    ("mainsail_heater_box1_temperature", "23.74"),
+    ("mainsail_heater_box1_humidity", "26.0"),
+    ("mainsail_heater_box2_temperature", "24.5"),
+    ("mainsail_heater_box2_humidity", "30.0"),
+    ("mainsail_sht3x_temperature", "32.43"),
+    ("mainsail_sht3x_temp_humidity", "43.0"),
+    ("mainsail_lm75_temperature", "32.43"),
+    ("mainsail_heater_fan_speed", "51.23"),
+    ("mainsail_controller_fan_speed", "51.23"),
+    ("mainsail_controller_fan_rpm", "5000.32123"),
+    ("mainsail_nevermore_fan_speed", "12.34"),
     ("mainsail_totals_print_time", "3h 9m 9s"),
     ("mainsail_totals_jobs", "3"),
     ("mainsail_totals_filament_used", "11.615718840002"),
@@ -78,10 +78,10 @@ DEFAULT_VALUES = [
     ("mainsail_toolhead_position_z", "10.20234"),
     ("mainsail_slicer_print_duration_estimate", "2.28666666666667"),
     ("mainsail_object_height", "62.6"),
-    ("mainsail_temperature_my_super_heater", "32.43"),
-    ("mainsail_puissance_my_super_heater", "12.34"),
-    ("mainsail_temperature_mixed_case", "33.21"),
-    ("mainsail_puissance_mixed_case", "45.67"),
+    ("mainsail_my_super_heater_temperature", "32.43"),
+    ("mainsail_my_super_heater_power", "12.34"),
+    ("mainsail_mixed_case_temperature", "33.21"),
+    ("mainsail_mixed_case_power", "45.67"),
 ]
 
 
@@ -116,7 +116,7 @@ async def test_sensor_services_update(hass, get_data):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.mainsail_temperature_du_plateau")
+    state = hass.states.get("sensor.mainsail_bed_temperature")
 
     assert state.state == "60.01"
 
@@ -128,7 +128,7 @@ async def test_sensor_services_update(hass, get_data):
     )
     await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.mainsail_temperature_du_plateau").state == "100.0"
+    assert hass.states.get("sensor.mainsail_bed_temperature").state == "100.0"
 
 
 """test all sensors"""
@@ -344,7 +344,7 @@ async def test_opt_sensor_missing(hass, get_data, get_printer_objects_list):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.mainsail_temperature_mcu")
+    state = hass.states.get("sensor.mainsail_mcu_temperature")
     assert state is None
 
 
@@ -360,7 +360,7 @@ async def test_opt_probe_missing(hass, get_data, get_printer_objects_list):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.mainsail_temperature_eddy")
+    state = hass.states.get("sensor.mainsail_eddy_temperature")
     assert state is None
 
 
@@ -635,7 +635,7 @@ async def test_no_fan_sensor(hass, get_data, get_printer_objects_list):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.mainsail_rpm_ventilateur")
+    state = hass.states.get("sensor.mainsail_fan_rpm")
     assert state is None
 
 
@@ -650,10 +650,10 @@ async def test_no_fan_rpm(hass, get_data, get_printer_objects_list):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.mainsail_rpm_ventilateur") is None
+    assert hass.states.get("sensor.mainsail_fan_rpm") is None
 
     # Already None in the data
-    assert hass.states.get("sensor.mainsail_rpm_heater_fan") is None
+    assert hass.states.get("sensor.mainsail_heater_fan_rpm") is None
 
 
 async def test_multi_mcu_sensor_data(hass, get_data, get_printer_objects_list):
@@ -1188,10 +1188,10 @@ async def test_optional_sensor_is_none(hass, get_default_api_response):
         await hass.async_block_till_done()
 
     entity_registry = er.async_get(hass)
-    entity = entity_registry.async_get("sensor.mainsail_temperature_mcu")
+    entity = entity_registry.async_get("sensor.mainsail_mcu_temperature")
     assert entity is not None
 
-    state = hass.states.get("sensor.mainsail_temperature_mcu")
+    state = hass.states.get("sensor.mainsail_mcu_temperature")
     assert state.state == "unknown"
 
     entity = entity_registry.async_get("sensor.mainsail_queue_state")
@@ -1330,8 +1330,8 @@ async def test_hall_filament_width_sensor_diameter_and_raw_created(
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    diameter = hass.states.get("sensor.mainsail_diametre_filament_width_sensor")
-    raw = hass.states.get("sensor.mainsail_brut_filament_width_sensor")
+    diameter = hass.states.get("sensor.mainsail_filament_width_sensor_diameter")
+    raw = hass.states.get("sensor.mainsail_filament_width_sensor_raw")
 
     assert diameter is not None
     assert diameter.state == "1.75"
@@ -1357,8 +1357,8 @@ async def test_hall_filament_width_sensor_diameter_and_raw_not_created_when_miss
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.mainsail_diametre_filament_width_sensor") is None
-    assert hass.states.get("sensor.mainsail_brut_filament_width_sensor") is None
+    assert hass.states.get("sensor.mainsail_filament_width_sensor_diameter") is None
+    assert hass.states.get("sensor.mainsail_filament_width_sensor_raw") is None
 
 
 async def test_optional_sensors_ignores_empty_object_name(
@@ -1390,7 +1390,7 @@ async def test_driver_without_temperature_creates_no_sensor(hass, get_data):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get("sensor.mainsail_temperature_tmc2240_stepper_x") is None
+    assert hass.states.get("sensor.mainsail_tmc2240_stepper_x_temperature") is None
 
 
 async def test_queue_state_unknown_value_is_not_reported(
@@ -1406,5 +1406,20 @@ async def test_queue_state_unknown_value_is_not_reported(
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("sensor.mainsail_etat_de_la_file_d_attente")
+    state = hass.states.get("sensor.mainsail_queue_state")
     assert state is None or state.state == "unknown"
+
+
+async def test_dynamic_names_follow_french_language(hass):
+    """Dynamic entity names are localised for the configured language."""
+    hass.config.language = "fr"
+
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, entry_id="test", unique_id="test"
+    )
+    config_entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.mainsail_temperature_du_plateau") is not None
+    assert hass.states.get("sensor.mainsail_bed_temperature") is None

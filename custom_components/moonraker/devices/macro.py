@@ -6,6 +6,7 @@ from __future__ import annotations
 from ..const import METHODS
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerButtonDescription
+from .labels import localized_service_name
 
 
 async def build_macro_buttons(
@@ -59,6 +60,8 @@ async def build_service_buttons(
 ) -> list[MoonrakerButtonDescription]:
     """Build Start, Stop, and Restart button descriptions for all allowed services."""
 
+    language = coordinator.hass.config.language
+
     system_info = await coordinator.async_fetch_shared(
         METHODS.MACHINE_SYSTEM_INFO, offline_ok=True
     )
@@ -73,7 +76,7 @@ async def build_service_buttons(
         service_buttons.append(
             MoonrakerButtonDescription(
                 key=f"stop_{service.lower()}",
-                name=f"Arrêter {service}",
+                name=localized_service_name(language, "stop", service),
                 press_fn=lambda button, svc=service: button.coordinator.async_send_data(
                     METHODS.MACHINE_SERVICES_STOP, {"service": svc}
                 ),
@@ -86,7 +89,7 @@ async def build_service_buttons(
         service_buttons.append(
             MoonrakerButtonDescription(
                 key=f"start_{service.lower()}",
-                name=f"Démarrer {service}",
+                name=localized_service_name(language, "start", service),
                 press_fn=lambda button, svc=service: button.coordinator.async_send_data(
                     METHODS.MACHINE_SERVICES_START, {"service": svc}
                 ),
@@ -99,7 +102,7 @@ async def build_service_buttons(
         service_buttons.append(
             MoonrakerButtonDescription(
                 key=f"restart_{service.lower()}",
-                name=f"Redémarrer {service}",
+                name=localized_service_name(language, "restart", service),
                 press_fn=lambda button, svc=service: button.coordinator.async_send_data(
                     METHODS.MACHINE_SERVICES_RESTART, {"service": svc}
                 ),

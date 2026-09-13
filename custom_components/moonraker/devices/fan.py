@@ -9,13 +9,15 @@ from homeassistant.const import UnitOfRatio, REVOLUTIONS_PER_MINUTE
 
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSensorDescription
-from .labels import fr_name
+from .labels import localized_fan, localized_name
 
 
 async def build_fan_sensors(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> list[MoonrakerSensorDescription]:
     """Build fan sensor descriptions from the printer object list."""
+
+    language = coordinator.hass.config.language
 
     fan_keys = ["heater_fan", "controller_fan", "fan_generic", "chamber_fan"]
 
@@ -43,7 +45,9 @@ async def build_fan_sensors(
             desc = MoonrakerSensorDescription(
                 key=f"{split_obj[0]}_{split_obj[1]}",
                 status_key=obj,
-                name=fr_name("speed", split_obj[1].replace("_", " ").title()),
+                name=localized_name(
+                    language, "speed", split_obj[1].replace("_", " ").title()
+                ),
                 value_fn=lambda sensor: (
                     sensor.coordinator.data["status"][sensor.status_key]["speed"] * 100
                 ),
@@ -61,7 +65,9 @@ async def build_fan_sensors(
                 desc = MoonrakerSensorDescription(
                     key=f"{split_obj[0]}_{split_obj[1]}_rpm",
                     status_key=obj,
-                    name=fr_name("rpm", split_obj[1].replace("_", " ").title()),
+                    name=localized_name(
+                        language, "rpm", split_obj[1].replace("_", " ").title()
+                    ),
                     value_fn=lambda sensor: sensor.coordinator.data["status"][
                         sensor.status_key
                     ]["rpm"],
@@ -78,7 +84,7 @@ async def build_fan_sensors(
             if rpm:
                 desc = MoonrakerSensorDescription(
                     key="fan_rpm",
-                    name=fr_name("rpm", "Ventilateur"),
+                    name=localized_name(language, "rpm", localized_fan(language)),
                     value_fn=lambda sensor: sensor.coordinator.data["status"]["fan"][
                         "rpm"
                     ],
@@ -97,6 +103,8 @@ async def build_fan_speed_numbers(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> list[MoonrakerNumberSensorDescription]:
     """Build fan speed number descriptions from the printer object list."""
+
+    language = coordinator.hass.config.language
 
     object_list = coordinator.objects_list or {"objects": []}
     objects = object_list.get("objects", [])
@@ -133,7 +141,7 @@ async def build_fan_speed_numbers(
         desc = MoonrakerNumberSensorDescription(
             key=key,
             sensor_name=obj,
-            name=fr_name("speed", display_name),
+            name=localized_name(language, "speed", display_name),
             status_key="speed",
             subscriptions=[(obj, "speed")],
             icon="mdi:fan",

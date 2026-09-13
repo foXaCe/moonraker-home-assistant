@@ -34,19 +34,19 @@ async def test_targets(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    assert hass.states.get("number.mainsail_cible_du_plateau").state == "60.0"
-    assert hass.states.get("number.mainsail_cible_de_l_extrudeuse").state == "205.0"
-    assert hass.states.get("number.mainsail_cible_de_l_extrudeuse_1").state == "220.0"
-    fan_target = hass.states.get("number.mainsail_cible_fan_temp")
+    assert hass.states.get("number.mainsail_bed_target").state == "60.0"
+    assert hass.states.get("number.mainsail_extruder_target").state == "205.0"
+    assert hass.states.get("number.mainsail_extruder1_target").state == "220.0"
+    fan_target = hass.states.get("number.mainsail_fan_temp_target")
     assert fan_target.state == "35.0"
     assert fan_target.attributes["max"] == 70.0
     assert fan_target.attributes["min"] == 10.0
-    chamber_target = hass.states.get("number.mainsail_cible_my_super_heater")
+    chamber_target = hass.states.get("number.mainsail_my_super_heater_target")
     assert chamber_target.state == "32.0"
     assert chamber_target.attributes["max"] == 90.0
     assert chamber_target.attributes["min"] == 25.0
     assert chamber_target.attributes["icon"] == "mdi:radiator"
-    mixed_target = hass.states.get("number.mainsail_cible_mixed_case")
+    mixed_target = hass.states.get("number.mainsail_mixed_case_target")
     assert mixed_target.state == "35.0"
     assert mixed_target.attributes["max"] == 85.0
     assert mixed_target.attributes["min"] == 30.0
@@ -55,7 +55,7 @@ async def test_targets(hass):
 # test number
 @pytest.mark.parametrize(
     ("number", "pin"),
-    [("mainsail_sortie_pwm", "pwm"), ("mainsail_sortie_capitalized", "CAPITALIZED")],
+    [("mainsail_output_pwm", "pwm"), ("mainsail_output_capitalized", "CAPITALIZED")],
 )
 async def test_number_set_value(hass, number, pin, get_default_api_response):
     """Test."""
@@ -99,7 +99,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_cible_de_l_extrudeuse",
+                ATTR_ENTITY_ID: "number.mainsail_extruder_target",
                 "value": 50,
             },
             blocking=True,
@@ -116,7 +116,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_cible_de_l_extrudeuse_1",
+                ATTR_ENTITY_ID: "number.mainsail_extruder1_target",
                 "value": 60,
             },
             blocking=True,
@@ -133,7 +133,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_cible_du_plateau",
+                ATTR_ENTITY_ID: "number.mainsail_bed_target",
                 "value": 70,
             },
             blocking=True,
@@ -150,7 +150,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_cible_fan_temp",
+                ATTR_ENTITY_ID: "number.mainsail_fan_temp_target",
                 "value": 45,
             },
             blocking=True,
@@ -167,7 +167,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_cible_my_super_heater",
+                ATTR_ENTITY_ID: "number.mainsail_my_super_heater_target",
                 "value": 45,
             },
             blocking=True,
@@ -184,7 +184,7 @@ async def test_set_target(hass, get_default_api_response):
             NUMBER_DOMAIN,
             SERVICE_SET_VALUE,
             {
-                ATTR_ENTITY_ID: "number.mainsail_cible_mixed_case",
+                ATTR_ENTITY_ID: "number.mainsail_mixed_case_target",
                 "value": 55,
             },
             blocking=True,
@@ -468,9 +468,9 @@ async def test_temperature_targets_handle_none(hass, get_data):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    bed_state = hass.states.get("number.mainsail_cible_du_plateau")
+    bed_state = hass.states.get("number.mainsail_bed_target")
     assert bed_state.state == "0.0"
-    extruder_state = hass.states.get("number.mainsail_cible_de_l_extrudeuse")
+    extruder_state = hass.states.get("number.mainsail_extruder_target")
     assert extruder_state.state == "0.0"
 
 
@@ -617,7 +617,7 @@ async def test_heater_generic_number_config_fallbacks(hass):
         entity.entity_description.name: entity for entity in added_entities
     }
 
-    mixed_entity = added_by_name["Cible Mixed Case"]
+    mixed_entity = added_by_name["Mixed Case Target"]
     assert mixed_entity.native_value == 35.0
     assert mixed_entity.native_max_value == 85.0
     assert mixed_entity.native_min_value == 30.0
@@ -628,7 +628,7 @@ async def test_heater_generic_number_config_fallbacks(hass):
     # A heater with no configfile.settings entry has no known upper bound, so it
     # gets no target control at all: Home Assistant requires a numeric max, and
     # guessing one would let the user ask for a temperature the printer refuses.
-    assert "Cible Orphan Heater" not in added_by_name
+    assert "Orphan Heater Target" not in added_by_name
     assert coordinator.query_obj["heater_generic MIXED_CASE"] == {"target"}
     assert "heater_generic orphan_heater" not in coordinator.query_obj
 
@@ -685,11 +685,11 @@ async def test_pwm_output_pin_entity_created(hass, get_data, get_printer_objects
     await hass.async_block_till_done()
 
     entity_registry = er.async_get(hass)
-    entity = entity_registry.async_get("number.mainsail_sortie_pwm")
+    entity = entity_registry.async_get("number.mainsail_output_pwm")
     assert entity is not None
     assert entity.unique_id == "test_output_pin pwm"
 
-    state = hass.states.get("number.mainsail_sortie_pwm")
+    state = hass.states.get("number.mainsail_output_pwm")
     assert state is not None
     assert state.state == "50.0"
 

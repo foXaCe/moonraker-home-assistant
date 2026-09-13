@@ -14,6 +14,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import METHODS
 from .coordinator import MoonrakerDataUpdateCoordinator
+from .devices.labels import localized_pending_packages, localized_update_name
 from .entity import BaseMoonrakerEntity
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ async def async_setup_entry(
     if machine_status.get("error"):
         return
 
+    language = coordinator.hass.config.language
     version_info = machine_status.get("version_info") or {}
     entities = []
     for component, info in version_info.items():
@@ -44,8 +46,8 @@ async def async_setup_entry(
                     component="system",
                     title="System",
                     installed_version="installed",
-                    latest_version=(
-                        f"{info.get('package_count', 0)} paquet(s) à mettre à jour"
+                    latest_version=localized_pending_packages(
+                        language, info.get("package_count", 0)
                     ),
                 )
             )
@@ -110,7 +112,9 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
         if component == "system":
             self._attr_translation_key = "system_update"
         else:
-            self._attr_name = f"Mise à jour {component.title()}"
+            self._attr_name = localized_update_name(
+                coordinator.hass.config.language, component
+            )
         self._attr_has_entity_name = True
         self._attr_title = title
         self._attr_installed_version = installed_version
@@ -158,8 +162,9 @@ class MoonrakerUpdateEntity(BaseMoonrakerEntity, UpdateEntity):
             return
 
         if self._component == "system":
-            self._attr_latest_version = (
-                f"{info.get('package_count', 0)} paquet(s) à mettre à jour"
+            self._attr_latest_version = localized_pending_packages(
+                self.coordinator.hass.config.language,
+                info.get("package_count", 0),
             )
         else:
             version = info.get("version")

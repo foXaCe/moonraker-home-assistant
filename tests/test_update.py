@@ -76,19 +76,17 @@ async def test_update_entities_created_for_components(
 
     registry = er.async_get(hass)
     system = registry.async_get("update.mainsail_system_update")
-    crownest = registry.async_get("update.mainsail_mise_a_jour_crownest")
+    crownest = registry.async_get("update.mainsail_update_crownest")
     assert system is not None
     assert crownest is not None
     assert system.disabled
     assert crownest.disabled
 
-    registry.async_update_entity(
-        "update.mainsail_mise_a_jour_crownest", disabled_by=None
-    )
+    registry.async_update_entity("update.mainsail_update_crownest", disabled_by=None)
     await hass.config_entries.async_reload(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    state = hass.states.get("update.mainsail_mise_a_jour_crownest")
+    state = hass.states.get("update.mainsail_update_crownest")
     assert state is not None
     assert state.state == "on"
     assert state.attributes["installed_version"] == "v4.0.4-6"
@@ -132,7 +130,7 @@ async def test_handle_coordinator_update_system_component(hass):
     entity._handle_coordinator_update()
 
     assert entity._attr_installed_version == "installed"
-    assert entity._attr_latest_version == "8 paquet(s) à mettre à jour"
+    assert entity._attr_latest_version == "8 package(s) to update"
 
 
 async def test_handle_coordinator_update_component_versions(hass):

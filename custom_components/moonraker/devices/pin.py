@@ -5,13 +5,15 @@ from __future__ import annotations
 
 from ..coordinator import MoonrakerDataUpdateCoordinator
 from .base import MoonrakerNumberSensorDescription, MoonrakerSwitchSensorDescription
-from .labels import fr_object_label
+from .labels import localized_object_label
 
 
 async def build_output_pin_switches(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> list[MoonrakerSwitchSensorDescription]:
     """Build digital output pin switch descriptions from the printer object list."""
+
+    language = coordinator.hass.config.language
 
     object_list = coordinator.objects_list or {"objects": []}
 
@@ -28,7 +30,7 @@ async def build_output_pin_switches(
         desc = MoonrakerSwitchSensorDescription(
             key=obj,
             sensor_name=obj,
-            name=fr_object_label(obj),
+            name=localized_object_label(language, obj),
             icon="mdi:switch",
             subscriptions=[(obj, "value")],
         )
@@ -41,6 +43,8 @@ async def build_pwm_numbers(
     coordinator: MoonrakerDataUpdateCoordinator,
 ) -> list[MoonrakerNumberSensorDescription]:
     """Build PWM output pin number descriptions from the printer object list."""
+
+    language = coordinator.hass.config.language
 
     object_list = coordinator.objects_list or {"objects": []}
 
@@ -57,7 +61,7 @@ async def build_pwm_numbers(
         desc = MoonrakerNumberSensorDescription(
             key=obj,
             sensor_name=obj,
-            name=fr_object_label(obj),
+            name=localized_object_label(language, obj),
             icon="mdi:switch",
             subscriptions=[(obj, "value")],
         )
