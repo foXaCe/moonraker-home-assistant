@@ -664,7 +664,13 @@ async def test_set_custom_gcode_service(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    device_id = list(hass.data["device_registry"].devices.keys())
+    device_registry = dr.async_get(hass)
+    device_id = [
+        entry.id
+        for entry in dr.async_entries_for_config_entry(
+            device_registry, config_entry.entry_id
+        )
+    ]
 
     # Test that the function call works in its entirety.
     with patch(
@@ -698,7 +704,13 @@ async def test_send_gcode_list_payload_normalizes_script(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    device_ids = list(hass.data["device_registry"].devices.keys())
+    device_registry = dr.async_get(hass)
+    device_ids = [
+        entry.id
+        for entry in dr.async_entries_for_config_entry(
+            device_registry, config_entry.entry_id
+        )
+    ]
     target_device_id = device_ids[0]
 
     with patch(
@@ -734,7 +746,13 @@ async def test_send_gcode_empty_payload_skips_send(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    device_ids = list(hass.data["device_registry"].devices.keys())
+    device_registry = dr.async_get(hass)
+    device_ids = [
+        entry.id
+        for entry in dr.async_entries_for_config_entry(
+            device_registry, config_entry.entry_id
+        )
+    ]
 
     with patch(
         "moonraker_api.MoonrakerClient.call_method", new_callable=AsyncMock
@@ -767,7 +785,13 @@ async def test_send_gcode_accepts_config_entry_id_and_deduplicates(hass):
     await hass.config_entries.async_setup(config_entry.entry_id)
     await hass.async_block_till_done()
 
-    device_ids = list(hass.data["device_registry"].devices.keys())
+    device_registry = dr.async_get(hass)
+    device_ids = [
+        entry.id
+        for entry in dr.async_entries_for_config_entry(
+            device_registry, config_entry.entry_id
+        )
+    ]
     primary_device_id = device_ids[0]
 
     with patch(
