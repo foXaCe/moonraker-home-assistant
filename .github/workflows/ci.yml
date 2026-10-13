@@ -44,7 +44,7 @@ jobs:
       - name: "Set up Python"
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
           cache: "pip"
 
       - name: "Install requirements"
@@ -63,7 +63,7 @@ jobs:
       - name: Setup Python
         uses: "actions/setup-python@v7"
         with:
-          python-version: "3.14"
+          python-version: "3.15"
           cache: "pip"
       - name: Install requirements
         run: python3 -m pip install -r requirements.txt
