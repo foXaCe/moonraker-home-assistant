@@ -654,6 +654,38 @@ async def test_setup_entry_offline_with_unique_id_proceeds(hass):
     assert not config_entry.runtime_data.coordinator.last_update_success
 
 
+async def test_setup_entry_offline_logs_no_error(hass, caplog):
+    """A printer that is off at startup is not an error: one warning, no ERROR line.
+
+    Seen live: "Moonraker ... is offline" (WARNING) immediately followed by
+    "Error fetching moonraker data: " (ERROR, empty message) for the same case.
+    """
+    config_entry = MockConfigEntry(
+        domain=DOMAIN, data=MOCK_CONFIG, unique_id="test-uuid", entry_id="offline_log"
+    )
+    config_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "moonraker_api.MoonrakerClient.call_method",
+            new_callable=AsyncMock,
+            side_effect=Exception,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    assert config_entry.state.value == "loaded"
+    errors = [r for r in caplog.records if r.levelname == "ERROR"]
+    assert errors == []
+    assert any("is offline" in r.getMessage() for r in caplog.records)
+
+
 async def test_set_custom_gcode_service(hass):
     """Test custom GCode Services."""
 
