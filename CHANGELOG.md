@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.5](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.4...moonraker-home-assistant-1.16.5) (2026-10-23)
+
+### Bug Fixes
+
+- **setup:** no ERROR line when the printer is off at startup ([#66](https://github.com/foXaCe/moonraker-home-assistant/issues/66)) ([9895157](https://github.com/foXaCe/moonraker-home-assistant/commit/9895157f97cef9fab76258ab6a62095d2d16b43c))
+
 ## [1.16.4](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.3...moonraker-home-assistant-1.16.4) (2026-09-13)
 
 ### Bug Fixes
