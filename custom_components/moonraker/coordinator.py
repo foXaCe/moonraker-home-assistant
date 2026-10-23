@@ -768,7 +768,7 @@ class MoonrakerDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 entry.data.get(CONF_URL),
                 _entry_port(entry),
             )
-            raise UpdateFailed()
+            raise UpdateFailed("Moonraker is unreachable")
         self._unreachable_warned = False
         _LOGGER.warning("connection to moonraker down, restarting")
         try:

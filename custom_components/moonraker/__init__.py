@@ -223,6 +223,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     else:
         coordinator.seed_discovery(objects_list, config_query)
 
+    if not connected:
+        # Already reported above as a warning. Starting from a failed state makes
+        # the coordinator log this first failed refresh at debug level instead
+        # of "Error fetching moonraker data" (an expected offline printer is not
+        # an error), and log "Fetching ... recovered" once the printer is back.
+        coordinator.last_update_success = False
+
     await coordinator.async_refresh()
 
     # Only fail setup on a failed first refresh when the printer answered at
