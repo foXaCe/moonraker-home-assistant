@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.16.6](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.5...moonraker-home-assistant-1.16.6) (2026-10-29)
+
+### Bug Fixes
+
+- the offline-at-startup message follows the quiet unreachable option ([#74](https://github.com/foXaCe/moonraker-home-assistant/issues/74)) ([545171b](https://github.com/foXaCe/moonraker-home-assistant/commit/545171b74fbdcde71042560d2227c5dff543ab43))
+
 ## [1.16.5](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.4...moonraker-home-assistant-1.16.5) (2026-10-23)
 
 ### Bug Fixes
