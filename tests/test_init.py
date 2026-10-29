@@ -686,6 +686,42 @@ async def test_setup_entry_offline_logs_no_error(hass, caplog):
     assert any("is offline" in r.getMessage() for r in caplog.records)
 
 
+async def test_setup_entry_offline_quiet_option_logs_at_debug(hass, caplog):
+    """With "quiet unreachable" on, an offline printer at startup logs no warning."""
+    caplog.set_level(logging.DEBUG)
+    config_entry = MockConfigEntry(
+        domain=DOMAIN,
+        data=MOCK_CONFIG,
+        options={CONF_OPTION_QUIET_UNREACHABLE: True},
+        unique_id="test-uuid",
+        entry_id="offline_quiet",
+    )
+    config_entry.add_to_hass(hass)
+
+    with (
+        patch(
+            "custom_components.moonraker._async_is_tcp_reachable",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "moonraker_api.MoonrakerClient.call_method",
+            new_callable=AsyncMock,
+            side_effect=Exception,
+        ),
+    ):
+        assert await hass.config_entries.async_setup(config_entry.entry_id)
+    await hass.async_block_till_done()
+
+    ours = [
+        r for r in caplog.records if r.name.startswith("custom_components.moonraker")
+    ]
+    assert [r for r in ours if r.levelno >= logging.WARNING] == []
+    assert any(
+        r.levelno == logging.DEBUG and "is offline" in r.getMessage() for r in ours
+    )
+
+
 async def test_set_custom_gcode_service(hass):
     """Test custom GCode Services."""
 
