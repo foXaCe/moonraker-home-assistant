@@ -126,7 +126,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
             if entry.unique_id is None:
                 raise ConfigEntryNotReady(f"Error connecting to {url}:{port}")
-            _LOGGER.warning(
+            _log_unreachable(
+                entry,
                 "Moonraker %s is offline; setting up with unavailable entities",
                 entry.title,
             )
