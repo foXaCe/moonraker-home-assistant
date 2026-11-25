@@ -65,6 +65,13 @@ jobs:
         with:
           python-version: "3.15"
           cache: "pip"
+      - name: Check that Home Assistant can install the manifest requirements
+        # Same constraints as Home Assistant itself, which the tests do not use.
+        run: |
+          curl -fsSL -o ha_constraints.txt \
+            https://raw.githubusercontent.com/home-assistant/core/master/homeassistant/package_constraints.txt
+          python3 -c "import json; print(*json.load(open('custom_components/moonraker/manifest.json'))['requirements'], sep='\n')" > manifest_requirements.txt
+          python3 -m pip install --dry-run -c ha_constraints.txt -r manifest_requirements.txt
       - name: Install requirements
         run: python3 -m pip install -r requirements.txt
       - name: Run tests

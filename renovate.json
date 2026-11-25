@@ -40,6 +40,11 @@
       "minimumReleaseAge": "7 days"
     },
     {
+      "description": "Home Assistant pins async-timeout==4.0.3; moonraker-api 4.0.1 and later need async-timeout 5",
+      "matchPackageNames": ["moonraker-api"],
+      "allowedVersions": "<=4.0.0"
+    },
+    {
       "matchPackageNames": ["pytest-homeassistant-custom-component"],
       "groupName": "homeassistant test deps"
     },
