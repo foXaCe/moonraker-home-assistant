@@ -2,10 +2,9 @@
 
 ## [1.16.7](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.6...moonraker-home-assistant-1.16.7) (2026-11-25)
 
-
 ### Bug Fixes
 
-* **deps:** update moonraker-api to 4.1.0 ([77f5037](https://github.com/foXaCe/moonraker-home-assistant/commit/77f503702385e964e8cd110805d7b2c0a0caa6f2))
+- **deps:** update moonraker-api to 4.1.0 ([77f5037](https://github.com/foXaCe/moonraker-home-assistant/commit/77f503702385e964e8cd110805d7b2c0a0caa6f2))
 
 ## [1.16.6](https://github.com/foXaCe/moonraker-home-assistant/compare/moonraker-home-assistant-1.16.5...moonraker-home-assistant-1.16.6) (2026-10-29)
 
